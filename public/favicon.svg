@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Fundo escuro estilizado -->
+  <rect width="512" height="512" rx="128" fill="#0b0d0c"/>
+  
+  <!-- Borda sutil de profundidade -->
+  <rect x="8" y="8" width="496" height="496" rx="120" stroke="#a3e635" stroke-opacity="0.3" stroke-width="12"/>
+
+  <!-- Brilho central verde-lima -->
+  <circle cx="256" cy="256" r="160" fill="#a3e635" fill-opacity="0.1"/>
+
+  <!-- Barra vertical da cruz / haste central -->
+  <rect x="232" y="96" width="48" height="320" rx="24" fill="#a3e635"/>
+
+  <!-- Barra horizontal da cruz -->
+  <rect x="136" y="192" width="240" height="48" rx="24" fill="#a3e635"/>
+
+  <!-- Ondas sonoras de escala à esquerda -->
+  <rect x="160" y="272" width="28" height="88" rx="14" fill="#a3e635" fill-opacity="0.75"/>
+  <rect x="88" y="220" width="28" height="112" rx="14" fill="#a3e635" fill-opacity="0.45"/>
+
+  <!-- Ondas sonoras de escala à direita -->
+  <rect x="324" y="272" width="28" height="88" rx="14" fill="#a3e635" fill-opacity="0.75"/>
+  <rect x="396" y="220" width="28" height="112" rx="14" fill="#a3e635" fill-opacity="0.45"/>
+
+  <!-- Ponto superior de luz / ministração -->
+  <circle cx="256" cy="64" r="14" fill="#ffffff"/>
+</svg>
