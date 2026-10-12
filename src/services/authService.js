@@ -1,15 +1,28 @@
 import { supabase } from './supabase';
 
 export const authService = {
+  // Buscar perfil pelo ID
+  async getProfile(userId) {
+    if (!userId) return null;
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Erro ao buscar perfil:', error);
+      return null;
+    }
+    return profile;
+  },
+
+  // Obter usuário e perfil atuais
   async getCurrentUser() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return null;
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single();
+    const profile = await this.getProfile(session.user.id);
 
     return {
       user: session.user,
@@ -19,6 +32,25 @@ export const authService = {
         roles: ['Vocal / Ministro(a)']
       }
     };
+  },
+
+  // Ouvinte em tempo real da sessão do Supabase (garante a persistência)
+  onAuthStateChange(callback) {
+    return supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        const profile = await this.getProfile(session.user.id);
+        callback({
+          user: session.user,
+          profile: profile || { 
+            role: 'member', 
+            full_name: session.user.email,
+            roles: ['Vocal / Ministro(a)']
+          }
+        });
+      } else {
+        callback(null);
+      }
+    });
   },
 
   async signUp(email, password, fullName, roles, birthDate) {

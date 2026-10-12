@@ -22,35 +22,37 @@ export default function App() {
 
   // 1. Checar sessão e sincronizar roles pendentes do Google OAuth
   useEffect(() => {
-    async function checkAuth() {
-      try {
-        const userSession = await authService.getCurrentUser();
-        
-        if (userSession?.user) {
-          const pendingRolesStr = localStorage.getItem('pending_roles');
-          if (pendingRolesStr) {
-            try {
-              const parsedRoles = JSON.parse(pendingRolesStr);
-              await authService.updateRoles(userSession.user.id, parsedRoles);
-              if (userSession.profile) {
-                userSession.profile.roles = parsedRoles;
-              }
-            } catch (e) {
-              console.error(e);
+    let isMounted = true;
+
+    // Inscrição no estado de autenticação (dispara automaticamente ao carregar com token salvo)
+    const { data: { subscription } } = authService.onAuthStateChange(async (userSession) => {
+      if (!isMounted) return;
+
+      if (userSession?.user) {
+        // Sincroniza pendências do Google OAuth se houver
+        const pendingRolesStr = localStorage.getItem('pending_roles');
+        if (pendingRolesStr) {
+          try {
+            const parsedRoles = JSON.parse(pendingRolesStr);
+            await authService.updateRoles(userSession.user.id, parsedRoles);
+            if (userSession.profile) {
+              userSession.profile.roles = parsedRoles;
             }
-            localStorage.removeItem('pending_roles');
+          } catch (e) {
+            console.error(e);
           }
+          localStorage.removeItem('pending_roles');
         }
-
-        setCurrentUser(userSession);
-      } catch (err) {
-        console.error('Erro na autenticação:', err);
-      } finally {
-        setIsAuthChecking(false);
       }
-    }
 
-    checkAuth();
+      setCurrentUser(userSession);
+      setIsAuthChecking(false);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription?.unsubscribe();
+    };
   }, []);
 
   // 2. Carregar dados do Supabase
