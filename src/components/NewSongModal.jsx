@@ -7,7 +7,7 @@ import {
   Tag, 
   Search, 
   Loader2, 
-  Youtube, 
+  Video, 
   ExternalLink,
   SlidersHorizontal
 } from 'lucide-react';
