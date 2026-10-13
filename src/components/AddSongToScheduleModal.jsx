@@ -1,94 +1,74 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Search, Loader2, Music2, Check, Library, PlusCircle } from 'lucide-react';
+import { X, Music2, Search, Plus, Check, RotateCcw } from 'lucide-react';
 
 export default function AddSongToScheduleModal({ isOpen, onClose, songsPool = [], onConfirm }) {
-  const [tab, setTab] = useState('pool'); // 'pool' = repertório existente | 'new' = buscar nova
-  
-  // Estado para seleção do repertório existente
-  const [filterText, setFilterText] = useState('');
-  const [selectedPoolSong, setSelectedPoolSong] = useState(null);
-  const [customKey, setCustomKey] = useState('G');
+  const [activeTab, setActiveTab] = useState('pool'); // 'pool' ou 'new'
+  const [searchFilter, setSearchFilter] = useState('');
+  const [selectedSongId, setSelectedSongId] = useState('');
+  const [customKey, setCustomKey] = useState('');
 
-  // Estado para busca de nova música (igual ao NewSongModal)
-  const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [newSongData, setNewSongData] = useState(null);
+  // Formulário para cadastrar música nova diretamente
+  const [newTitle, setNewTitle] = useState('');
+  const [newArtist, setNewArtist] = useState('');
+  const [newDefaultKey, setNewDefaultKey] = useState('G');
+  const [newTag, setNewTag] = useState('Adoração');
+  const [newChordsUrl, setNewChordsUrl] = useState('');
+  const [newYoutubeUrl, setNewYoutubeUrl] = useState('');
 
   if (!isOpen) return null;
 
-  // Busca na API pública do iTunes Search
-  const handleAutoSearch = async (e) => {
-    e.preventDefault();
-    if (!searchTerm.trim()) return;
+  const selectedSong = songsPool.find((s) => s.id === selectedSongId);
 
-    try {
-      setIsSearching(true);
-      const query = encodeURIComponent(searchTerm.trim());
-      const response = await fetch(
-        `https://itunes.apple.com/search?term=${query}&entity=song&limit=6`
-      );
-      const data = await response.json();
-      setSearchResults(data.results || []);
-    } catch (error) {
-      console.error('Erro ao buscar música:', error);
-    } finally {
-      setIsSearching(false);
-    }
+  // Ao selecionar uma música do repertório, puxa automaticamente o tom original dela
+  const handleSelectSong = (song) => {
+    setSelectedSongId(song.id);
+    setCustomKey(song.default_key || 'C');
   };
 
-  const handleSelectTrack = (track) => {
-    const title = track.trackName;
-    const artist = track.artistName;
-    const ytQuery = encodeURIComponent(`${title} ${artist}`);
-    const ccQuery = encodeURIComponent(`${title} ${artist}`);
-
-    setNewSongData({
-      title,
-      artist,
-      default_key: 'G',
-      bpm: 72,
-      tag: 'Adoração',
-      youtube_url: `https://www.youtube.com/results?search_query=${ytQuery}`,
-      chords_url: `https://www.cifraclub.com.br/?q=${ccQuery}`,
-    });
-    setCustomKey('G');
-  };
-
-  const handleFinish = (e) => {
+  const handleConfirm = (e) => {
     e.preventDefault();
 
-    if (tab === 'pool') {
-      if (!selectedPoolSong) return;
+    if (activeTab === 'pool') {
+      if (!selectedSongId) {
+        alert('Selecione uma música do repertório.');
+        return;
+      }
       onConfirm({
-        type: 'existing',
-        songId: selectedPoolSong.id,
-        songKey: customKey || selectedPoolSong.default_key,
+        type: 'pool',
+        songId: selectedSongId,
+        songKey: (customKey || selectedSong?.default_key || 'C').trim().toUpperCase()
       });
     } else {
-      if (!newSongData) return;
+      if (!newTitle.trim()) {
+        alert('Informe o título da música.');
+        return;
+      }
       onConfirm({
         type: 'new',
-        newSong: newSongData,
-        songKey: customKey || newSongData.default_key,
+        songKey: (customKey || newDefaultKey || 'C').trim().toUpperCase(),
+        newSong: {
+          title: newTitle.trim(),
+          artist: newArtist.trim() || 'Ministério de Louvor',
+          default_key: (newDefaultKey || 'C').trim().toUpperCase(),
+          tag: newTag,
+          chords_url: newChordsUrl.trim(),
+          youtube_url: newYoutubeUrl.trim()
+        }
       });
     }
 
-    handleClose();
-  };
-
-  const handleClose = () => {
-    setTab('pool');
-    setSelectedPoolSong(null);
-    setNewSongData(null);
-    setSearchTerm('');
-    setSearchResults([]);
+    // Resetar campos
+    setSelectedSongId('');
+    setCustomKey('');
+    setNewTitle('');
+    setNewArtist('');
+    setSearchFilter('');
     onClose();
   };
 
   const filteredPool = songsPool.filter((s) =>
-    s.title.toLowerCase().includes(filterText.toLowerCase()) ||
-    s.artist.toLowerCase().includes(filterText.toLowerCase())
+    (s.title || '').toLowerCase().includes(searchFilter.toLowerCase()) ||
+    (s.artist || '').toLowerCase().includes(searchFilter.toLowerCase())
   );
 
   return (
@@ -98,209 +78,240 @@ export default function AddSongToScheduleModal({ isOpen, onClose, songsPool = []
         {/* Cabeçalho */}
         <div className="px-6 py-4 border-b border-zinc-800/80 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-[#a3e635] flex items-center justify-center text-black font-bold text-xs shadow-md shadow-[#a3e635]/20">
-              <Sparkles className="w-4 h-4 fill-black" />
+            <div className="w-7 h-7 rounded-xl bg-[#a3e635] text-black flex items-center justify-center font-bold text-xs">
+              <Music2 className="w-4 h-4" />
             </div>
             <h3 className="font-bold text-white text-base">Adicionar Música à Escala</h3>
           </div>
           <button
-            onClick={handleClose}
+            type="button"
+            onClick={onClose}
             className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Abas Alternadoras: Do Repertório ou Nova Música */}
-        <div className="flex border-b border-zinc-800/80 bg-[#0b0d0c]/50 p-2 gap-2">
-          <button
-            type="button"
-            onClick={() => setTab('pool')}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              tab === 'pool'
-                ? 'bg-[#a3e635] text-black shadow-md shadow-[#a3e635]/20'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-            }`}
-          >
-            <Library className="w-4 h-4" />
-            Do Repertório ({songsPool.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('new')}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-              tab === 'new'
-                ? 'bg-[#a3e635] text-black shadow-md shadow-[#a3e635]/20'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
-            }`}
-          >
-            <PlusCircle className="w-4 h-4" />
-            Buscar / Cadastrar Nova
-          </button>
+        {/* Abas: Escolher do Repertório vs Criar Nova */}
+        <div className="p-4 pb-0">
+          <div className="flex bg-[#0b0d0c] p-1.5 rounded-2xl border border-zinc-800 gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveTab('pool')}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'pool'
+                  ? 'bg-[#a3e635] text-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Escolher do Repertório ({songsPool.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('new');
+                if (!customKey) setCustomKey(newDefaultKey);
+              }}
+              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'new'
+                  ? 'bg-[#a3e635] text-black shadow-sm'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              + Nova Música na Hora
+            </button>
+          </div>
         </div>
 
-        {/* Corpo do Modal */}
-        <div className="p-6 overflow-y-auto space-y-4 flex-1">
-          {tab === 'pool' ? (
-            /* ABA 1: Escolher do Repertório já existente */
-            <div className="space-y-3">
+        {/* Conteúdo */}
+        <div className="p-6 overflow-y-auto space-y-5">
+          {activeTab === 'pool' ? (
+            <>
+              {/* Barra de Busca rápida */}
               <div className="relative">
                 <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
                 <input
                   type="text"
-                  value={filterText}
-                  onChange={(e) => setFilterText(e.target.value)}
-                  placeholder="Filtrar músicas do repertório..."
+                  placeholder="Pesquisar por título ou artista..."
+                  value={searchFilter}
+                  onChange={(e) => setSearchFilter(e.target.value)}
                   className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-[#a3e635]"
                 />
               </div>
 
-              <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+              {/* Lista de músicas existentes */}
+              <div className="max-h-52 overflow-y-auto space-y-1.5 pr-1">
                 {filteredPool.length > 0 ? (
                   filteredPool.map((song) => {
-                    const isSelected = selectedPoolSong?.id === song.id;
+                    const isSelected = selectedSongId === song.id;
                     return (
                       <div
                         key={song.id}
-                        onClick={() => {
-                          setSelectedPoolSong(song);
-                          setCustomKey(song.default_key);
-                        }}
-                        className={`flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer ${
+                        onClick={() => handleSelectSong(song)}
+                        className={`p-3 rounded-2xl border flex items-center justify-between cursor-pointer transition-all ${
                           isSelected
-                            ? 'bg-[#181d1a] border-[#a3e635]'
-                            : 'bg-[#0b0d0c] border-zinc-800 hover:border-zinc-700'
+                            ? 'bg-[#182315] border-[#a3e635] shadow-sm shadow-[#a3e635]/20'
+                            : 'bg-[#0b0d0c] border-zinc-800/80 hover:border-zinc-700'
                         }`}
                       >
                         <div>
-                          <h4 className="text-xs font-bold text-white">{song.title}</h4>
-                          <p className="text-[11px] text-zinc-400">{song.artist} • Tom Base: {song.default_key}</p>
+                          <p className="text-xs font-bold text-white leading-tight">{song.title}</p>
+                          <span className="text-[11px] text-zinc-400">{song.artist}</span>
                         </div>
-                        {isSelected && (
-                          <span className="w-6 h-6 rounded-full bg-[#a3e635] text-black flex items-center justify-center font-bold text-xs">
-                            ✓
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300">
+                            Tom Original: <strong className="text-[#a3e635]">{song.default_key}</strong>
                           </span>
-                        )}
+                          {isSelected && <Check className="w-4 h-4 text-[#a3e635]" />}
+                        </div>
                       </div>
                     );
                   })
                 ) : (
-                  <p className="text-xs text-zinc-500 text-center py-6">Nenhuma música encontrada no repertório.</p>
+                  <p className="text-xs text-zinc-500 text-center py-4 italic">
+                    Nenhuma música encontrada no repertório.
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            /* Formulário de Criação Rápida */
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-zinc-300">Título da Música *</label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Ex: Bondade de Deus"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-zinc-300">Artista / Ministério</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Isaías Saad"
+                    value={newArtist}
+                    onChange={(e) => setNewArtist(e.target.value)}
+                    className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-zinc-300">Tom Original Padrão</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: G, D, Bm"
+                    value={newDefaultKey}
+                    onChange={(e) => {
+                      setNewDefaultKey(e.target.value);
+                      setCustomKey(e.target.value);
+                    }}
+                    className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-zinc-300">Categoria</label>
+                  <select
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+                  >
+                    <option value="Adoração">Adoração</option>
+                    <option value="Celebração / Júbilo">Celebração / Júbilo</option>
+                    <option value="Abertura">Abertura</option>
+                    <option value="Comunhão">Comunhão</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-zinc-300">Link da Cifra (Cifra Club ou PDF)</label>
+                <input
+                  type="url"
+                  placeholder="https://www.cifraclub.com.br/..."
+                  value={newChordsUrl}
+                  onChange={(e) => setNewChordsUrl(e.target.value)}
+                  className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-zinc-300">Link do YouTube</label>
+                <input
+                  type="url"
+                  placeholder="https://youtube.com/watch?v=..."
+                  value={newYoutubeUrl}
+                  onChange={(e) => setNewYoutubeUrl(e.target.value)}
+                  className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Área de Definição do Tom para Esta Escala */}
+          <div className="pt-4 border-t border-zinc-800/80 bg-[#0b0d0c]/70 p-4 rounded-2xl border border-zinc-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#a3e635]"></span>
+                  Tom a ser tocado nesta escala:
+                </label>
+                <span className="text-[11px] text-zinc-400">
+                  {selectedSong ? (
+                    <>Tom original cadastrado: <strong className="text-[#a3e635]">{selectedSong.default_key}</strong></>
+                  ) : (
+                    'Puxa o tom original automaticamente ou digite o tom desejado.'
+                  )}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Ex: G, D, Em"
+                  value={customKey}
+                  onChange={(e) => setCustomKey(e.target.value)}
+                  className="w-24 bg-zinc-900 border border-zinc-700 focus:border-[#a3e635] rounded-xl px-3 py-2 text-center text-sm font-black text-[#a3e635] uppercase focus:outline-none"
+                />
+
+                {/* Botão de Restaurar o Tom Original se foi alterado */}
+                {selectedSong && customKey !== selectedSong.default_key && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomKey(selectedSong.default_key)}
+                    className="p-2 rounded-xl bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                    title="Restaurar tom original"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
             </div>
-          ) : (
-            /* ABA 2: Buscar Nova Música Automaticamente */
-            <div className="space-y-4">
-              <form onSubmit={handleAutoSearch} className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Nome da música ou artista..."
-                    className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-[#a3e635]"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSearching}
-                  className="px-4 py-2 bg-[#a3e635] text-black font-bold text-xs rounded-xl hover:bg-[#b5f448] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Buscar'}
-                </button>
-              </form>
-
-              {/* Lista de resultados retornados */}
-              {searchResults.length > 0 && !newSongData && (
-                <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                  {searchResults.map((track) => (
-                    <div
-                      key={track.trackId}
-                      onClick={() => handleSelectTrack(track)}
-                      className="group flex items-center justify-between p-2.5 rounded-xl bg-[#0b0d0c] hover:bg-[#181d1a] border border-zinc-800 hover:border-[#a3e635]/50 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {track.artworkUrl60 ? (
-                          <img src={track.artworkUrl60} alt="" className="w-9 h-9 rounded-lg object-cover" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-lg bg-zinc-850 flex items-center justify-center text-zinc-500">
-                            <Music2 className="w-4 h-4" />
-                          </div>
-                        )}
-                        <div>
-                          <h4 className="text-xs font-bold text-white group-hover:text-[#a3e635]">{track.trackName}</h4>
-                          <p className="text-[11px] text-zinc-400">{track.artistName}</p>
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-bold text-black bg-[#a3e635] px-2.5 py-1 rounded-lg">
-                        Selecionar
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Dados da nova música selecionada */}
-              {newSongData && (
-                <div className="p-3.5 bg-[#0b0d0c] border border-[#a3e635]/40 rounded-2xl space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[10px] text-[#a3e635] font-bold uppercase tracking-wider">Nova Música Selecionada</span>
-                      <h4 className="text-sm font-bold text-white">{newSongData.title}</h4>
-                      <p className="text-xs text-zinc-400">{newSongData.artist}</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setNewSongData(null)}
-                      className="text-xs text-zinc-500 hover:text-white"
-                    >
-                      Trocar
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Configuração do Tom nesta Escala */}
-          {(selectedPoolSong || newSongData) && (
-            <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-between gap-3 bg-[#0b0d0c] p-3 rounded-2xl border border-zinc-800">
-              <div>
-                <label className="text-xs font-bold text-white block">Tom neste culto:</label>
-                <span className="text-[10px] text-zinc-400">
-                  (Padrão original: {selectedPoolSong?.default_key || newSongData?.default_key})
-                </span>
-              </div>
-              <select
-                value={customKey}
-                onChange={(e) => setCustomKey(e.target.value)}
-                className="bg-zinc-900 border border-zinc-700 text-[#a3e635] font-black rounded-xl px-3 py-1.5 text-xs focus:outline-none"
-              >
-                {['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B', 'Am', 'Em', 'Dm'].map((k) => (
-                  <option key={k} value={k}>{k}</option>
-                ))}
-              </select>
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Rodapé / Ações */}
-        <div className="px-6 py-4 border-t border-zinc-800/80 flex items-center justify-end gap-2 bg-[#131614]">
+        {/* Rodapé com Ações */}
+        <div className="px-6 py-4 border-t border-zinc-800/80 flex items-center justify-end gap-2 bg-[#0e1110]">
           <button
             type="button"
-            onClick={handleClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white"
+            onClick={onClose}
+            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white cursor-pointer"
           >
             Cancelar
           </button>
           <button
             type="button"
-            disabled={tab === 'pool' ? !selectedPoolSong : !newSongData}
-            onClick={handleFinish}
-            className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#a3e635] text-black hover:bg-[#b5f448] transition-colors shadow-md shadow-[#a3e635]/20 cursor-pointer disabled:opacity-40"
+            onClick={handleConfirm}
+            className="px-6 py-2.5 rounded-xl text-xs font-bold bg-[#a3e635] hover:bg-[#b5f448] text-black transition-colors flex items-center gap-1.5 cursor-pointer shadow-md shadow-[#a3e635]/20"
           >
+            <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
             Adicionar à Escala
           </button>
         </div>
