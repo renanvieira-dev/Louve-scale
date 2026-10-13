@@ -210,15 +210,15 @@ export default function DashboardOverview({
         {/* Aniversariantes do Mês */}
         <div className="bg-[#131614] border border-zinc-800/80 rounded-3xl p-6 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Cake className="w-4 h-4 text-[#a3e635]" />
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <Cake className="w-4 h-4 text-[#a3e635] flex-shrink-0" />
+                <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider truncate">
                   Aniversariantes de {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
                 </h3>
               </div>
-              <span className="text-xs font-bold text-[#a3e635] bg-[#a3e635]/10 px-2.5 py-1 rounded-xl border border-[#a3e635]/20">
-                {birthdayMembers.length} {birthdayMembers.length === 1 ? 'aniversariante' : 'aniversariantes'}
+              <span className="text-[11px] sm:text-xs font-bold text-[#a3e635] bg-[#a3e635]/10 px-2 sm:px-2.5 py-1 rounded-xl border border-[#a3e635]/20 whitespace-nowrap flex-shrink-0">
+                {birthdayMembers.length} <span className="hidden xs:inline">{birthdayMembers.length === 1 ? 'aniversariante' : 'aniversariantes'}</span>
               </span>
             </div>
 
