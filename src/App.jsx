@@ -317,12 +317,25 @@ export default function App() {
         </main>
 
       </div>
-      
-      {/* Chat Flutuante da Equipe */}
-        <TeamChatWidget 
-          currentUser={currentUser} 
-          songsPool={songs} 
-        />
+
+      {/* Botão Flutuante (FAB) */}
+      {!isOpen && (
+        <button
+          onClick={() => {
+            requestNotifyPermission();
+            setIsOpen(true);
+          }}
+          className="fixed bottom-5 right-5 z-40 bg-gradient-to-tr from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-blue-900/40 border-2 border-slate-900 transition-transform active:scale-95 cursor-pointer group"
+          title="Abrir Chat da Equipe"
+        >
+          <MessageCircle className="w-6 h-6 stroke-[2.5]" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-church-red text-white font-extrabold text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-church-dark animate-bounce">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
     </div>
   );

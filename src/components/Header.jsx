@@ -53,10 +53,9 @@ export default function Header({
 
   return (
     <header className="w-full flex flex-col gap-3 sm:gap-4">
-      {/* Linha Superior */}
       <div className="flex items-center justify-between border-b border-church-border pb-3 sm:pb-4 gap-4">
         
-        {/* Logo e Nome Original Preservados */}
+        {/* Logótipo e Marca LouveScale */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <Logo size={36} className="rounded-2xl w-8 h-8 sm:w-9 sm:h-9" />
           <span className="font-extrabold text-white text-base sm:text-lg tracking-tight">
@@ -64,7 +63,7 @@ export default function Header({
           </span>
         </div>
 
-        {/* Abas no Desktop */}
+        {/* Abas Desktop */}
         <nav className="hidden sm:flex items-center gap-1 bg-church-card p-1.5 rounded-2xl border border-church-border shadow-inner">
           {tabs.map((tab) => (
             <button
@@ -83,7 +82,6 @@ export default function Header({
 
         {/* Perfil & Logout */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          
           <div className="flex items-center gap-2 bg-church-card border border-church-border p-1.5 pr-3 rounded-2xl">
             <input
               type="file"
@@ -93,7 +91,6 @@ export default function Header({
               className="hidden"
             />
 
-            {/* Avatar Interativo */}
             <div
               onClick={handleAvatarClick}
               className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden cursor-pointer group border border-slate-700/80 hover:border-church-blue transition-all flex items-center justify-center bg-slate-900 flex-shrink-0"
@@ -118,7 +115,6 @@ export default function Header({
               </div>
             </div>
 
-            {/* Informações do Membro */}
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
                 {isAdmin ? (
@@ -150,7 +146,7 @@ export default function Header({
 
       </div>
 
-      {/* Abas no Mobile */}
+      {/* Abas Mobile */}
       <nav className="grid grid-cols-4 sm:hidden bg-church-card p-1 rounded-2xl border border-church-border gap-1 w-full">
         {tabs.map((tab) => (
           <button

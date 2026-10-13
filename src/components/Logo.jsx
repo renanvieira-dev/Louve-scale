@@ -1,23 +1,28 @@
 import React from 'react';
 
-export default function Logo({ size = 34, className = '' }) {
+export default function Logo({ size = 36, className = '' }) {
   return (
     <div 
-      className={`relative flex items-center justify-center rounded-2xl p-1.5 bg-gradient-to-br from-slate-900 via-[#0d1527] to-[#070a13] border border-blue-500/30 shadow-md shadow-blue-900/30 ${className}`}
+      className={`relative flex items-center justify-center rounded-2xl p-1 bg-gradient-to-br from-slate-900 via-church-card to-church-dark border border-church-blue/30 shadow-md shadow-blue-900/30 ${className}`}
       style={{ width: size, height: size }}
     >
-      {/* Ícone Original do LouveScale (Cruz estilizada com ondas de louvor) */}
       <svg 
-        viewBox="0 0 24 24" 
+        viewBox="0 0 100 100" 
         fill="none" 
-        stroke="currentColor" 
-        strokeWidth="2" 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        className="w-full h-full text-blue-500"
+        xmlns="http://www.w3.org/2000/svg"
+        className="w-full h-full"
       >
-        <path d="M12 2v20" />
-        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        {/* Equalizador Esquerda */}
+        <rect x="18" y="44" width="7" height="24" rx="3.5" fill="#2563eb" />
+        <rect x="32" y="34" width="7" height="42" rx="3.5" fill="#2563eb" />
+        
+        {/* Cruz Central */}
+        <rect x="46.5" y="20" width="7" height="60" rx="3.5" fill="#ffffff" />
+        <rect x="37" y="35" width="26" height="7" rx="3.5" fill="#ffffff" />
+        
+        {/* Equalizador Direita */}
+        <rect x="61" y="34" width="7" height="42" rx="3.5" fill="#2563eb" />
+        <rect x="75" y="44" width="7" height="24" rx="3.5" fill="#2563eb" />
       </svg>
     </div>
   );

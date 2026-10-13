@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  /* Fundo e Superfícies Dark (Navy / Slate Profundo) */
+  /* Fundo e Superfícies Dark Navy / Slate */
   --color-church-dark: #070a13;
   --color-church-card: #0d1527;
   --color-church-card-hover: #131f38;
   --color-church-border: #1e293b;
 
-  /* Cores Oficiais MI Church */
+  /* Cores MI Church */
   --color-church-blue: #2563eb;
   --color-church-blue-hover: #1d4ed8;
   --color-church-blue-navy: #1e3a8a;
@@ -26,7 +26,7 @@ body {
   padding: 0;
 }
 
-/* Evitar zoom automático no iPhone Safari */
+/* Prevenir zoom no iOS Safari */
 @media screen and (max-width: 768px) {
   input,
   select,
