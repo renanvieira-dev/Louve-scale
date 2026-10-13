@@ -25,15 +25,15 @@ export const schedulesService = {
 
   // Suporte a 'type' (service ou rehearsal)
   async createSchedule({ title, type, event_date, notes, members = [] }) {
-    // 1. Criar a escala na tabela schedules
+    // 1. Criar o registo principal da escala
     const { data: scheduleData, error: scheduleError } = await supabase
       .from('schedules')
       .insert([
         {
-          title,
+          title: title.trim(),
           type: type || 'service',
           event_date,
-          notes: notes || null
+          notes: notes?.trim() || null
         }
       ])
       .select()
@@ -45,11 +45,10 @@ export const schedulesService = {
     }
 
     // 2. Se houver voluntários escalados, inserir em schedule_members
-    if (members.length > 0 && scheduleData?.id) {
+    if (members && members.length > 0 && scheduleData?.id) {
       const payload = members.map((m) => ({
         schedule_id: scheduleData.id,
         profile_id: m.profile_id,
-        user_id: m.profile_id, // compatibilidade caso a coluna no banco seja user_id
         role: m.role || 'Voluntário',
         status: m.status || 'pending'
       }));
@@ -59,23 +58,8 @@ export const schedulesService = {
         .insert(payload);
 
       if (membersError) {
-        console.error('Erro ao inserir em schedule_members:', membersError);
-        // Tenta sem 'user_id' caso dê erro de coluna inexistente
-        const fallbackPayload = members.map((m) => ({
-          schedule_id: scheduleData.id,
-          profile_id: m.profile_id,
-          role: m.role || 'Voluntário',
-          status: m.status || 'pending'
-        }));
-
-        const { error: fallbackError } = await supabase
-          .from('schedule_members')
-          .insert(fallbackPayload);
-
-        if (fallbackError) {
-          console.error('Erro detalhado no fallback de schedule_members:', fallbackError);
-          throw new Error(`Erro ao escalar membros: ${fallbackError.message}`);
-        }
+        console.error('Erro detalhado em schedule_members:', membersError);
+        throw new Error(`Erro ao vincular voluntários: ${membersError.message}`);
       }
     }
 
