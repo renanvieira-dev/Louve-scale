@@ -6,7 +6,7 @@ import NewSongModal from './components/NewSongModal';
 import TeamChatWidget from './components/TeamChatWidget';
 import { supabase } from './services/supabase';
 import { schedulesService } from './services/schedulesService';
-import { Calendar, Plus, Music2, Users, ExternalLink, Trash2, Youtube, FileText } from 'lucide-react';
+import { Calendar, Plus, Music2, Users, ExternalLink, Trash2, Video, FileText } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -115,7 +115,7 @@ export default function App() {
     }
   };
 
-  // Excluir música (caso queira deletar)
+  // Excluir música
   const handleDeleteSong = async (songId) => {
     if (!confirm('Tem certeza que deseja excluir esta música do repertório?')) return;
     try {
@@ -350,7 +350,7 @@ export default function App() {
                               className="p-1.5 rounded-lg bg-slate-900 hover:bg-church-red text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-[11px] font-semibold"
                               title="Ver no YouTube"
                             >
-                              <Youtube className="w-3.5 h-3.5 text-red-500" /> Vídeo
+                              <Video className="w-3.5 h-3.5 text-red-500" /> Vídeo
                             </a>
                           )}
                         </div>
