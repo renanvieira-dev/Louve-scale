@@ -8,6 +8,7 @@ import AuthModal from './components/AuthModal';
 import { songsService } from './services/songsService';
 import { schedulesService } from './services/schedulesService';
 import { authService } from './services/authService';
+import TeamChatWidget from './components/TeamChatWidget';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -316,6 +317,13 @@ export default function App() {
         </main>
 
       </div>
+      
+      {/* Chat Flutuante da Equipe */}
+        <TeamChatWidget 
+          currentUser={currentUser} 
+          songsPool={songs} 
+        />
+
     </div>
   );
 }
