@@ -3,7 +3,8 @@ import { Users, Shield, User, Check, Plus, Trash2 } from 'lucide-react';
 import { authService } from '../services/authService';
 
 const AVAILABLE_INSTRUMENTS = [
-  'Vocal / Ministro(a)',
+  'Ministro(a) de Louvor',
+  'Backing Vocal',
   'Violão',
   'Guitarra',
   'Baixo',

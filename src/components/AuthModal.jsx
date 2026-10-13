@@ -4,7 +4,8 @@ import Logo from './Logo';
 import { authService } from '../services/authService';
 
 const AVAILABLE_ROLES = [
-  'Vocal / Ministro(a)',
+  'Ministro(a) de Louvor',
+  'Backing Vocal',
   'Violão',
   'Guitarra',
   'Baixo',
