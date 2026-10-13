@@ -107,24 +107,24 @@ export default function NewScheduleModal({
       <div className="bg-[#131614] border border-zinc-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         
         {/* Cabeçalho */}
-        <div className="px-5 py-4 border-b border-zinc-800/80 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-2xl bg-[#a3e635] text-black flex items-center justify-center font-bold text-xs shadow-md shadow-[#a3e635]/20">
+        <div className="px-5 py-4 border-b border-zinc-800/80 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-2xl bg-[#a3e635] text-black flex items-center justify-center font-bold text-xs shadow-md shadow-[#a3e635]/20 flex-shrink-0">
               <Calendar className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-white text-base">Nova Escala / Agendamento</h3>
+            <h3 className="font-bold text-white text-base truncate">Nova Escala / Agendamento</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer flex-shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Formulário */}
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4">
+        {/* Formulário com scroll vertical contido */}
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto overflow-x-hidden space-y-4 flex-1">
           
           {/* Tipo de Evento */}
           <div className="grid grid-cols-2 gap-2 bg-[#0b0d0c] p-1.5 rounded-2xl border border-zinc-800">
@@ -167,13 +167,13 @@ export default function NewScheduleModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex: Culto da Família, Ensaio de Louvor..."
-              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#a3e635]"
+              className="w-full box-border bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#a3e635]"
             />
           </div>
 
-          {/* Data e Atalhos Rápidos */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
+          {/* Data e Atalhos */}
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
               <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
                 <CalendarDays className="w-3.5 h-3.5 text-[#a3e635]" /> Data *
               </label>
@@ -207,24 +207,25 @@ export default function NewScheduleModal({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
-              style={{ colorScheme: 'dark' }}
+              className="w-full max-w-full box-border bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635] appearance-none"
+              style={{ colorScheme: 'dark', WebkitAppearance: 'none' }}
             />
           </div>
 
           {/* Horário com Seleção Rápida */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-[#a3e635]" /> Horário
             </label>
 
-            <div className="grid grid-cols-6 gap-1.5">
+            {/* Chips em grid flexível para caber no iPhone SE sem transbordar */}
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 w-full">
               {QUICK_TIMES.map((qt) => (
                 <button
                   key={qt}
                   type="button"
                   onClick={() => setTime(qt)}
-                  className={`py-1.5 rounded-xl text-[11px] font-bold transition-all ${
+                  className={`py-2 rounded-xl text-[11px] font-bold text-center transition-all ${
                     time === qt
                       ? 'bg-[#a3e635] text-black shadow-sm'
                       : 'bg-[#0b0d0c] border border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
@@ -239,8 +240,8 @@ export default function NewScheduleModal({
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-200 focus:outline-none focus:border-[#a3e635]"
-              style={{ colorScheme: 'dark' }}
+              className="w-full max-w-full box-border bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-[#a3e635] appearance-none"
+              style={{ colorScheme: 'dark', WebkitAppearance: 'none' }}
             />
           </div>
 
@@ -252,7 +253,7 @@ export default function NewScheduleModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ex: Passagem de som às 18h30. Vestimenta: tons escuros."
-              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#a3e635]"
+              className="w-full box-border bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#a3e635]"
             />
           </div>
 
@@ -267,27 +268,25 @@ export default function NewScheduleModal({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 bg-[#0b0d0c] p-3 rounded-2xl border border-zinc-800">
-              <div className="sm:col-span-6">
-                <select
-                  value={tempProfileId}
-                  onChange={(e) => setTempProfileId(e.target.value)}
-                  className="w-full bg-[#131614] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
-                >
-                  <option value="">Selecione o voluntário...</option>
-                  {profiles.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.full_name} ({Array.isArray(p.roles) ? p.roles.join(', ') : (p.instrument_role || 'Voluntário')})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="grid grid-cols-1 gap-2 bg-[#0b0d0c] p-3 rounded-2xl border border-zinc-800">
+              <select
+                value={tempProfileId}
+                onChange={(e) => setTempProfileId(e.target.value)}
+                className="w-full box-border bg-[#131614] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+              >
+                <option value="">Selecione o voluntário...</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name} ({Array.isArray(p.roles) ? p.roles.join(', ') : (p.instrument_role || 'Voluntário')})
+                  </option>
+                ))}
+              </select>
 
-              <div className="sm:col-span-4">
+              <div className="flex gap-2">
                 <select
                   value={tempRole}
                   onChange={(e) => setTempRole(e.target.value)}
-                  className="w-full bg-[#131614] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+                  className="flex-1 min-w-0 box-border bg-[#131614] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
                 >
                   {SCHEDULE_ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -295,13 +294,11 @@ export default function NewScheduleModal({
                     </option>
                   ))}
                 </select>
-              </div>
 
-              <div className="sm:col-span-2">
                 <button
                   type="button"
                   onClick={handleAddMember}
-                  className="w-full h-full py-2 bg-zinc-900 hover:bg-[#a3e635] text-zinc-300 hover:text-black rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border border-zinc-800 hover:border-[#a3e635]"
+                  className="py-2 px-3 bg-zinc-900 hover:bg-[#a3e635] text-zinc-300 hover:text-black rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border border-zinc-800 hover:border-[#a3e635] flex-shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" /> Adicionar
                 </button>
@@ -313,11 +310,11 @@ export default function NewScheduleModal({
                 {selectedMembers.map((member, idx) => (
                   <div
                     key={idx}
-                    className="p-2.5 rounded-xl bg-[#0b0d0c] border border-zinc-800/80 flex items-center justify-between"
+                    className="p-2.5 rounded-xl bg-[#0b0d0c] border border-zinc-800/80 flex items-center justify-between gap-2"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-white">{member.full_name}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-[#a3e635]/15 border border-[#a3e635]/30 text-[#a3e635]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs font-bold text-white truncate">{member.full_name}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-[#a3e635]/15 border border-[#a3e635]/30 text-[#a3e635] truncate flex-shrink-0">
                         {member.role_in_schedule}
                       </span>
                     </div>
@@ -325,7 +322,7 @@ export default function NewScheduleModal({
                     <button
                       type="button"
                       onClick={() => handleRemoveMember(idx)}
-                      className="text-zinc-500 hover:text-red-400 p-1 rounded-lg transition-colors cursor-pointer"
+                      className="text-zinc-500 hover:text-red-400 p-1 rounded-lg transition-colors cursor-pointer flex-shrink-0"
                       title="Remover da escala"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -336,8 +333,8 @@ export default function NewScheduleModal({
             )}
           </div>
 
-          {/* Rodapé com Ações */}
-          <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-end gap-2">
+          {/* Rodapé com Botões */}
+          <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-end gap-2 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}
