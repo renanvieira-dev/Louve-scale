@@ -98,6 +98,7 @@ export const authService = {
     return data;
   },
 
+  // Atualizar permissão (admin / member)
   async updateUserRole(userId, newRole) {
     const { data, error } = await supabase
       .from('profiles')
@@ -107,7 +108,23 @@ export const authService = {
       .single();
 
     if (error) {
-      console.error('Erro ao atualizar cargo do usuário:', error);
+      console.error('Erro ao atualizar cargo:', error);
+      throw error;
+    }
+    return data;
+  },
+
+  // Atualizar lista de instrumentos/funções do voluntário
+  async updateUserRolesList(userId, roles) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ roles: roles })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao atualizar instrumentos:', error);
       throw error;
     }
     return data;

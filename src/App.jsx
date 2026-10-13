@@ -3,8 +3,8 @@ import Header from './components/Header';
 import DashboardOverview from './components/DashboardOverview';
 import SongsView from './components/SongsView';
 import SchedulesView from './components/SchedulesView';
+import MembersView from './components/MembersView';
 import AuthModal from './components/AuthModal';
-import TeamManagementModal from './components/TeamManagementModal';
 import { songsService } from './services/songsService';
 import { schedulesService } from './services/schedulesService';
 import { authService } from './services/authService';
@@ -13,7 +13,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   
-  // Navegação
+  // Abas: 'dashboard', 'schedules', 'songs', 'members'
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [songs, setSongs] = useState([]);
@@ -21,10 +21,7 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Estado do Modal de Gerenciamento da Equipe
-  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
-
-  // 1. Escuta contínua de sessão
+  // 1. Escuta contínua de sessão e persistência
   useEffect(() => {
     let isMounted = true;
 
@@ -41,7 +38,7 @@ export default function App() {
               userSession.profile.roles = parsedRoles;
             }
           } catch (e) {
-            console.error('Erro ao sincronizar funções do Google OAuth:', e);
+            console.error('Erro ao sincronizar funções pendentes:', e);
           }
           localStorage.removeItem('pending_roles');
         }
@@ -203,10 +200,10 @@ export default function App() {
     }
   };
 
-  // Callback ao atualizar cargo de membro
-  const handleRoleUpdated = (userId, newRole) => {
+  // Callback de atualização de perfil/funções na lista de voluntários
+  const handleProfileUpdated = (userId, updatedFields) => {
     setProfiles((prev) =>
-      prev.map((p) => (p.id === userId ? { ...p, role: newRole } : p))
+      prev.map((p) => (p.id === userId ? { ...p, ...updatedFields } : p))
     );
   };
 
@@ -244,8 +241,6 @@ export default function App() {
               schedules={schedules}
               profiles={profiles}
               onNavigate={setActiveTab}
-              isAdmin={isAdmin}
-              onOpenTeamManagement={() => setIsTeamModalOpen(true)}
             />
           )}
 
@@ -279,18 +274,16 @@ export default function App() {
               isAdmin={isAdmin}
             />
           )}
-        </main>
 
-        {/* Modal de Gestão da Equipe (Disponível para Admin) */}
-        {isAdmin && (
-          <TeamManagementModal
-            isOpen={isTeamModalOpen}
-            onClose={() => setIsTeamModalOpen(false)}
-            profiles={profiles}
-            currentUserId={currentUser?.user?.id}
-            onRoleUpdated={handleRoleUpdated}
-          />
-        )}
+          {activeTab === 'members' && (
+            <MembersView
+              profiles={profiles}
+              currentUserId={currentUser?.user?.id}
+              isAdmin={isAdmin}
+              onProfileUpdated={handleProfileUpdated}
+            />
+          )}
+        </main>
 
       </div>
     </div>

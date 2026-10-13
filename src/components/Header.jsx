@@ -12,6 +12,13 @@ export default function Header({
 }) {
   const isAdmin = currentUser?.profile?.role === 'admin';
 
+  const tabs = [
+    { id: 'dashboard', label: 'Painel' },
+    { id: 'schedules', label: 'Escalas' },
+    { id: 'songs', label: 'Músicas' },
+    { id: 'members', label: 'Voluntários' }
+  ];
+
   return (
     <header className="w-full flex flex-col gap-3 sm:gap-4">
       {/* Barra Superior Principal */}
@@ -25,13 +32,9 @@ export default function Header({
           </span>
         </div>
 
-        {/* Centro (Desktop): Abas compactas centralizadas como era antes */}
+        {/* Centro (Desktop): Abas compactas centralizadas */}
         <nav className="hidden sm:flex items-center gap-1 bg-[#131614] p-1.5 rounded-2xl border border-zinc-800/80">
-          {[
-            { id: 'dashboard', label: 'Painel' },
-            { id: 'schedules', label: 'Escalas' },
-            { id: 'songs', label: 'Músicas' }
-          ].map((tab) => (
+          {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -78,17 +81,13 @@ export default function Header({
 
       </div>
 
-      {/* Navegação Mobile (Exibida SOMENTE em telas pequenas, abaixo do topo) */}
-      <nav className="grid grid-cols-3 sm:hidden bg-[#131614] p-1 rounded-2xl border border-zinc-800/80 gap-1 w-full">
-        {[
-          { id: 'dashboard', label: 'Painel' },
-          { id: 'schedules', label: 'Escalas' },
-          { id: 'songs', label: 'Músicas' }
-        ].map((tab) => (
+      {/* Navegação Mobile (4 colunas perfeitamente ajustadas no ecrã) */}
+      <nav className="grid grid-cols-4 sm:hidden bg-[#131614] p-1 rounded-2xl border border-zinc-800/80 gap-1 w-full">
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`py-2 px-3 text-center rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`py-2 px-1 text-center rounded-xl text-[11px] font-bold transition-all cursor-pointer truncate ${
               activeTab === tab.id
                 ? 'bg-[#a3e635] text-black shadow-sm'
                 : 'text-zinc-400 hover:text-white'
