@@ -20,16 +20,14 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 1. Checar sessão e sincronizar roles pendentes do Google OAuth
+  // 1. Escuta contínua de sessão com persistência e sincronização de roles
   useEffect(() => {
     let isMounted = true;
 
-    // Inscrição no estado de autenticação (dispara automaticamente ao carregar com token salvo)
     const { data: { subscription } } = authService.onAuthStateChange(async (userSession) => {
       if (!isMounted) return;
 
       if (userSession?.user) {
-        // Sincroniza pendências do Google OAuth se houver
         const pendingRolesStr = localStorage.getItem('pending_roles');
         if (pendingRolesStr) {
           try {
@@ -39,7 +37,7 @@ export default function App() {
               userSession.profile.roles = parsedRoles;
             }
           } catch (e) {
-            console.error(e);
+            console.error('Erro ao sincronizar funções do Google OAuth:', e);
           }
           localStorage.removeItem('pending_roles');
         }
@@ -85,6 +83,7 @@ export default function App() {
     setCurrentUser(null);
   };
 
+  // Cadastrar nova música
   const handleAddSong = async (newSongData) => {
     try {
       const savedSong = await songsService.addSong(newSongData);
@@ -94,6 +93,27 @@ export default function App() {
     }
   };
 
+  // Excluir música do repertório (Admin)
+  const handleDeleteSong = async (songId) => {
+    try {
+      await songsService.deleteSong(songId);
+      setSongs((prev) => prev.filter((s) => s.id !== songId));
+      
+      // Atualiza também nas escalas em memória caso alguma estivesse exibindo
+      setSchedules((prev) =>
+        prev.map((sched) => ({
+          ...sched,
+          schedule_songs: (sched.schedule_songs || []).filter(
+            (item) => item.song_id !== songId && item.songs?.id !== songId
+          ),
+        }))
+      );
+    } catch {
+      alert('Erro ao excluir música. Verifique se tem permissão ou se a música está vinculada a alguma escala.');
+    }
+  };
+
+  // Criar escala / ensaio
   const handleAddSchedule = async (schedulePayload) => {
     try {
       await schedulesService.createSchedule(schedulePayload);
@@ -104,6 +124,7 @@ export default function App() {
     }
   };
 
+  // Excluir escala / ensaio
   const handleDeleteSchedule = async (scheduleId) => {
     try {
       await schedulesService.deleteSchedule(scheduleId);
@@ -113,6 +134,7 @@ export default function App() {
     }
   };
 
+  // Atualizar confirmação de presença do membro
   const handleStatusChange = async (memberId, status) => {
     try {
       await schedulesService.updateMemberStatus(memberId, status);
@@ -129,6 +151,7 @@ export default function App() {
     }
   };
 
+  // Adicionar música à escala
   const handleAddSongToSchedule = async (scheduleId, payload, orderIndex) => {
     try {
       let songIdToLink = payload.songId;
@@ -161,6 +184,7 @@ export default function App() {
     }
   };
 
+  // Remover música da escala
   const handleRemoveSongFromSchedule = async (scheduleId, scheduleSongId) => {
     try {
       await schedulesService.removeSongFromSchedule(scheduleSongId);
@@ -182,6 +206,7 @@ export default function App() {
     }
   };
 
+  // Tela de verificação inicial
   if (isAuthChecking) {
     return (
       <div className="min-h-screen bg-[#0b0d0c] flex items-center justify-center">
@@ -190,6 +215,7 @@ export default function App() {
     );
   }
 
+  // Se não autenticado, abre o modal de login/cadastro
   if (!currentUser) {
     return <AuthModal onLoginSuccess={(user) => setCurrentUser(user)} />;
   }
@@ -243,7 +269,8 @@ export default function App() {
           {activeTab === 'songs' && (
             <SongsView 
               songs={songs} 
-              onAddSong={handleAddSong} 
+              onAddSong={handleAddSong}
+              onDeleteSong={handleDeleteSong}
               searchQuery={searchQuery}
               isAdmin={isAdmin}
             />

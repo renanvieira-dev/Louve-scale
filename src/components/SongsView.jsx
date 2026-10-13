@@ -3,7 +3,13 @@ import SongCard from './SongCard';
 import NewSongModal from './NewSongModal';
 import { Plus } from 'lucide-react';
 
-export default function SongsView({ songs = [], onAddSong, searchQuery = '', isAdmin = false }) {
+export default function SongsView({ 
+  songs = [], 
+  onAddSong, 
+  onDeleteSong, 
+  searchQuery = '', 
+  isAdmin = false 
+}) {
   const [selectedTag, setSelectedTag] = useState('Todas');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -40,7 +46,7 @@ export default function SongsView({ songs = [], onAddSong, searchQuery = '', isA
           ))}
         </div>
 
-        {/* Botão de Adicionar Música visível exclusivamente para Admin */}
+        {/* Botão de Adicionar Música (Admin) */}
         {isAdmin && (
           <button
             onClick={() => setIsModalOpen(true)}
@@ -56,7 +62,12 @@ export default function SongsView({ songs = [], onAddSong, searchQuery = '', isA
       {filteredSongs.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredSongs.map((song) => (
-            <SongCard key={song.id} song={song} />
+            <SongCard 
+              key={song.id} 
+              song={song} 
+              isAdmin={isAdmin}
+              onDeleteSong={onDeleteSong}
+            />
           ))}
         </div>
       ) : (
@@ -71,7 +82,7 @@ export default function SongsView({ songs = [], onAddSong, searchQuery = '', isA
         </div>
       )}
 
-      {/* Modal de Registo */}
+      {/* Modal de Cadastro de Música */}
       {isAdmin && (
         <NewSongModal
           isOpen={isModalOpen}

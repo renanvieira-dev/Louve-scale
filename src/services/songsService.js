@@ -1,53 +1,42 @@
 import { supabase } from './supabase';
 
 export const songsService = {
-  // Obter todas as músicas ordenadas por data de criação
   async getSongs() {
     const { data, error } = await supabase
       .from('songs')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('title', { ascending: true });
 
     if (error) {
-      console.error('Erro ao procurar músicas:', error);
+      console.error('Erro ao buscar músicas:', error);
       throw error;
     }
-    return data;
+    return data || [];
   },
 
-  // Adicionar uma nova música
-  async addSong(song) {
+  async addSong(songData) {
     const { data, error } = await supabase
       .from('songs')
-      .insert([
-        {
-          title: song.title,
-          artist: song.artist,
-          default_key: song.default_key,
-          bpm: song.bpm,
-          tag: song.tag,
-          chords_url: song.chords_url || null,
-          youtube_url: song.youtube_url || null,
-        }
-      ])
-      .select();
+      .insert([songData])
+      .select()
+      .single();
 
     if (error) {
       console.error('Erro ao adicionar música:', error);
       throw error;
     }
-    return data[0];
+    return data;
   },
 
-  // Remover uma música
-  async deleteSong(id) {
+  // Nova função para excluir música
+  async deleteSong(songId) {
     const { error } = await supabase
       .from('songs')
       .delete()
-      .eq('id', id);
+      .eq('id', songId);
 
     if (error) {
-      console.error('Erro ao eliminar música:', error);
+      console.error('Erro ao excluir música:', error);
       throw error;
     }
   }
