@@ -8,8 +8,7 @@ import {
   Search, 
   Loader2, 
   Video, 
-  ExternalLink,
-  Sparkles
+  ExternalLink 
 } from 'lucide-react';
 
 const COMMON_KEYS = [
@@ -27,30 +26,22 @@ const KEY_MAP = {
   'SI': 'B'
 };
 
-// Base de referência gospel com versões reais consagradas
-const KNOWN_GOSPEL_VERSIONS = {
-  'oh quao lindo': [
-    { title: 'Oh Quão Lindo Esse Nome É', artist: 'Kemuel', key: 'D', videoId: 'eM7t_iQ2GgU' },
-    { title: 'Oh Quão Lindo Esse Nome É', artist: 'Ana Nóbrega', key: 'D', videoId: '0gQZ1Zf1V3s' },
-    { title: 'What a Beautiful Name', artist: 'Hillsong Worship', key: 'D', videoId: 'nQWFzMvCfLE' }
-  ],
-  'bondade de deus': [
-    { title: 'Bondade de Deus', artist: 'Isaías Saad', key: 'G', videoId: '9bZkp7q19f0' },
-    { title: 'Goodness of God', artist: 'Bethel Music / CeCe Winans', key: 'Ab', videoId: '936BapRFHaY' }
-  ],
-  'todavia me alegrarei': [
-    { title: 'Todavia Me Alegrarei', artist: 'Leandro Borges', key: 'C', videoId: 'xP2Z9bQ3vXk' },
-    { title: 'Todavia Me Alegrarei', artist: 'Samuel Miranda', key: 'D', videoId: '2b7qK1vB8oE' }
-  ],
-  'ousado amor': [
-    { title: 'Ousado Amor', artist: 'Isaías Saad', key: 'Gb', videoId: '0Yx3U9a4tL0' }
-  ],
-  'a bencao': [
-    { title: 'A Bênção', artist: 'Gabriel Guedes & Julia Vitória', key: 'Bb', videoId: '7XqB8_tG3k8' }
-  ],
-  'me atraiu': [
-    { title: 'Me Atraiu', artist: 'Gabriela Rocha', key: 'Em', videoId: 'v8Zk3m1Q9aE' }
-  ]
+// Mapeamento de tons conhecidos por palavra-chave de repertório
+const DEFAULT_TONES_MAP = {
+  'e ele': 'E',
+  'é ele': 'E',
+  'bondade de deus': 'G',
+  'todavia me alegrarei': 'C',
+  'ousado amor': 'Gb',
+  'oh quao lindo esse nome': 'D',
+  'oh quão lindo esse nome': 'D',
+  'a bencao': 'Bb',
+  'a bênção': 'Bb',
+  'me atraiu': 'Em',
+  'a casa e sua': 'A',
+  'a casa é sua': 'A',
+  'ruja o leao': 'C#m',
+  'ruja o leão': 'C#m'
 };
 
 export default function NewSongModal({ isOpen, onClose, onSave }) {
@@ -94,121 +85,95 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     return 'G';
   };
 
-  // Buscar Versões Reais (com instâncias públicas e catálogo integrado)
+  // Busca real na API pública da Apple/iTunes (sem bloqueio de CORS e com catálogo gospel completo)
   const handleSearchVersions = async (e) => {
     e?.preventDefault();
-    if (!searchTerm.trim()) return;
+    const query = searchTerm.trim();
+    if (!query) return;
 
     try {
       setIsSearching(true);
       setHasSearched(true);
       setSearchResults([]);
 
-      const cleanQuery = searchTerm.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const response = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=10&country=BR`
+      );
 
-      // 1. Verificar catálogo local de louvores conhecidos
-      let localMatches = [];
-      for (const [keySong, versions] of Object.entries(KNOWN_GOSPEL_VERSIONS)) {
-        if (cleanQuery.includes(keySong) || keySong.includes(cleanQuery)) {
-          localMatches = versions.map(v => ({
-            id: v.videoId,
-            title: `${v.title} (${v.artist})`,
-            cleanTitle: v.title,
-            artist: v.artist,
-            suggestedKey: v.key,
-            thumbnail: `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
-            url: `https://www.youtube.com/watch?v=${v.videoId}`
-          }));
-          break;
-        }
-      }
+      if (!response.ok) throw new Error('Falha ao buscar faixas');
 
-      // 2. Consulta a instâncias públicas de YouTube Search API (Piped / Invidious)
-      const endpoints = [
-        `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(searchTerm + ' louvor')}&filter=videos`,
-        `https://api.invidious.io/instances.json`
-      ];
+      const data = await response.json();
+      const tracks = data.results || [];
 
-      let apiResults = [];
-      try {
-        const res = await fetch(`https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(searchTerm + ' louvor')}&filter=videos`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.items && data.items.length > 0) {
-            apiResults = data.items.slice(0, 5).map(item => {
-              const videoId = item.url ? item.url.replace('/watch?v=', '') : item.id;
-              return {
-                id: videoId,
-                title: item.title,
-                cleanTitle: item.title.replace(/\(.*?Oficial.*?\)/gi, '').replace(/\[.*?\]/gi, '').trim(),
-                artist: item.uploaderName || 'Ministério de Louvor',
-                suggestedKey: null,
-                thumbnail: item.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-                url: `https://www.youtube.com/watch?v=${videoId}`
-              };
-            });
+      if (tracks.length > 0) {
+        const formatted = tracks.map((track) => {
+          const trackTitle = track.trackName;
+          const artistName = track.artistName;
+          const albumName = track.collectionName || '';
+          const highResArtwork = track.artworkUrl100
+            ? track.artworkUrl100.replace('100x100bb.jpg', '300x300bb.jpg')
+            : '';
+
+          // Slug para Cifra Club direto
+          const cleanArtist = artistName
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '-')
+            .replace(/-+/g, '-');
+
+          const cleanSong = trackTitle
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '-')
+            .replace(/-+/g, '-');
+
+          // Link específico de vídeo oficial no YouTube
+          const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(trackTitle + ' ' + artistName + ' louvor oficial')}`;
+
+          // Tenta detectar tom pela base ou tom padrão
+          const checkNormalized = trackTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          let estimatedKey = 'G';
+          for (const [pattern, keyVal] of Object.entries(DEFAULT_TONES_MAP)) {
+            if (checkNormalized.includes(pattern)) {
+              estimatedKey = keyVal;
+              break;
+            }
           }
-        }
-      } catch {
-        // Ignora erro de rede da API e utiliza os resultados locais ou fallback limpo
-      }
 
-      // Prioriza os resultados locais consagrados se existirem, complementando com os da API
-      const finalResults = localMatches.length > 0 
-        ? [...localMatches, ...apiResults.filter(a => !localMatches.some(l => l.id === a.id))]
-        : apiResults;
+          return {
+            id: track.trackId,
+            title: trackTitle,
+            artist: artistName,
+            album: albumName,
+            thumbnail: highResArtwork,
+            youtubeUrl: ytUrl,
+            chordsUrl: `https://www.cifraclub.com.br/${cleanArtist}/${cleanSong}/`,
+            chordsSearchUrl: `https://www.cifraclub.com.br/?q=${encodeURIComponent(trackTitle + ' ' + artistName)}`,
+            suggestedKey: estimatedKey
+          };
+        });
 
-      if (finalResults.length > 0) {
-        setSearchResults(finalResults.slice(0, 5));
+        setSearchResults(formatted);
       } else {
-        // Fallback estruturado para nunca gerar "Versão Mais Tocada" fictícia
-        setSearchResults([
-          {
-            id: 'search-link',
-            title: searchTerm.trim(),
-            cleanTitle: searchTerm.trim(),
-            artist: 'Buscar no YouTube & Cifra Club',
-            suggestedKey: 'G',
-            thumbnail: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=150&auto=format&fit=crop&q=80',
-            url: `https://www.youtube.com/results?search_query=${encodeURIComponent(searchTerm + ' louvor oficial')}`
-          }
-        ]);
+        setSearchResults([]);
       }
-
     } catch (err) {
-      console.error('Erro na pesquisa:', err);
+      console.error('Erro na busca de faixas:', err);
+      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Ao selecionar uma versão real
-  const handleSelectVersion = (version) => {
-    // 1. Título e Artista reais
-    const selectedTitle = version.cleanTitle || version.title;
-    const selectedArtist = version.artist !== 'Buscar no YouTube & Cifra Club' ? version.artist : '';
-
-    setTitle(selectedTitle);
-    setArtist(selectedArtist);
-    setYoutubeUrl(version.url);
-
-    // 2. Link Cifra Club que NUNCA dá 404 (utiliza a busca interna oficial do site)
-    const queryForChords = selectedArtist 
-      ? `${selectedTitle} ${selectedArtist}` 
-      : selectedTitle;
-    setChordsUrl(`https://www.cifraclub.com.br/?q=${encodeURIComponent(queryForChords)}`);
-
-    // 3. Tom real
-    if (version.suggestedKey) {
-      setDefaultKey(normalizeDetectedKey(version.suggestedKey));
-    } else {
-      // Tenta achar tom mencionado no título
-      const matchTone = version.title.match(/tom[:\s]+([A-G][#b]?m?)/i);
-      if (matchTone && matchTone[1]) {
-        setDefaultKey(normalizeDetectedKey(matchTone[1]));
-      }
-    }
-
+  // Ao clicar na versão exata encontrada
+  const handleSelectVersion = (item) => {
+    setTitle(item.title);
+    setArtist(item.artist);
+    setYoutubeUrl(item.youtubeUrl);
+    setChordsUrl(item.chordsUrl);
+    setDefaultKey(normalizeDetectedKey(item.suggestedKey));
     setSearchResults([]);
   };
 
@@ -263,16 +228,16 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
           </button>
         </div>
 
-        {/* Corpo */}
+        {/* Corpo com Scroll */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
-          {/* BARRA DE PESQUISA INTELIGENTE */}
+          {/* BARRA DE PESQUISA DIRETA */}
           <div className="bg-church-dark p-3.5 rounded-2xl border border-church-border space-y-2.5">
             <label className="text-xs font-bold text-white flex items-center gap-1.5">
-              <Search className="w-3.5 h-3.5 text-church-blue" /> Buscar Louvor e Versões
+              <Search className="w-3.5 h-3.5 text-church-blue" /> Buscar Música e Versões Oficiais
             </label>
             <p className="text-[11px] text-slate-400">
-              Digite o nome do louvor para buscar as versões reais de artistas (ex: Kemuel, Ana Nóbrega, Hillsong):
+              Digite o nome do louvor (ex: <i>É Ele</i>, <i>Bondade de Deus</i>, <i>Todavia Me Alegrarei</i>):
             </p>
             
             <form onSubmit={handleSearchVersions} className="flex gap-2">
@@ -280,7 +245,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Ex: Oh quão lindo esse nome é, Bondade de Deus..."
+                placeholder="Nome do louvor..."
                 className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
               />
               <button
@@ -293,40 +258,46 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               </button>
             </form>
 
-            {/* LISTA DE VERSÕES ENCONTRADAS */}
+            {/* LISTA DE VERSÕES REAIS ENCONTRADAS */}
             {searchResults.length > 0 && (
               <div className="pt-2 space-y-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Selecione a versão desejada:
+                  Selecione a versão exata:
                 </span>
-                <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                   {searchResults.map((ver) => (
                     <div
                       key={ver.id}
                       onClick={() => handleSelectVersion(ver)}
                       className="p-2.5 rounded-xl bg-church-card hover:bg-church-card-hover border border-church-border hover:border-church-blue/60 flex items-center gap-3 cursor-pointer transition-all group"
                     >
-                      <img 
-                        src={ver.thumbnail} 
-                        alt="" 
-                        className="w-14 h-10 object-cover rounded-lg flex-shrink-0 bg-slate-900 border border-church-border"
-                      />
+                      {ver.thumbnail ? (
+                        <img 
+                          src={ver.thumbnail} 
+                          alt="" 
+                          className="w-12 h-12 object-cover rounded-xl flex-shrink-0 bg-slate-900 border border-church-border"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0">
+                          <Music2 className="w-5 h-5 text-slate-400" />
+                        </div>
+                      )}
+
                       <div className="flex-1 min-w-0">
                         <h4 className="text-xs font-bold text-white group-hover:text-church-blue truncate">
                           {ver.title}
                         </h4>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] text-slate-400 truncate">
-                            {ver.artist}
+                        <p className="text-[11px] text-slate-300 font-medium truncate mt-0.5">
+                          {ver.artist}
+                        </p>
+                        {ver.album && (
+                          <span className="text-[10px] text-slate-500 block truncate">
+                            {ver.album}
                           </span>
-                          {ver.suggestedKey && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-church-blue/20 text-blue-400 font-bold">
-                              Tom {ver.suggestedKey}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
-                      <span className="text-[10px] font-extrabold text-church-blue bg-blue-950/60 border border-church-blue/30 px-2 py-1 rounded-lg flex-shrink-0">
+
+                      <span className="text-[10px] font-extrabold text-church-blue bg-blue-950/60 border border-church-blue/30 px-2.5 py-1.5 rounded-xl flex-shrink-0">
                         Selecionar
                       </span>
                     </div>
@@ -334,9 +305,15 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 </div>
               </div>
             )}
+
+            {hasSearched && searchResults.length === 0 && !isSearching && (
+              <p className="text-[11px] text-slate-500 italic py-1">
+                Nenhuma música encontrada com esse termo. Tente adicionar o nome do artista na busca.
+              </p>
+            )}
           </div>
 
-          {/* FORMULÁRIO COM DADOS PREENCHIDOS */}
+          {/* FORMULÁRIO PREENCHIDO */}
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
             
             <div className="space-y-1">
@@ -346,7 +323,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Oh Quão Lindo Esse Nome É"
+                placeholder="Ex: É Ele"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -358,7 +335,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={artist}
                 onChange={(e) => setArtist(e.target.value)}
-                placeholder="Ex: Kemuel / Ana Nóbrega"
+                placeholder="Ex: Gabi Sampaio / Droba"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -415,16 +392,16 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="url"
                 value={chordsUrl}
                 onChange={(e) => setChordsUrl(e.target.value)}
-                placeholder="https://www.cifraclub.com.br/?q=..."
+                placeholder="https://www.cifraclub.com.br/artista/musica/"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
 
-            {/* Link direto do Vídeo do YouTube */}
+            {/* Link do Vídeo no YouTube */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-church-red" /> Vídeo Específico no YouTube
+                  <LinkIcon className="w-3.5 h-3.5 text-church-red" /> Vídeo de Referência (YouTube)
                 </label>
                 {youtubeUrl && (
                   <a 
@@ -441,7 +418,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="url"
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
+                placeholder="https://www.youtube.com/..."
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -455,7 +432,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
-                placeholder="Ex: Adoração, Celebração, Santa Ceia"
+                placeholder="Ex: Adoração, Celebração, Ceia"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
