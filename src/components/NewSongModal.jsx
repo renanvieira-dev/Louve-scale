@@ -1,7 +1,21 @@
 import React, { useState } from 'react';
-import { X, Music2, Check, Link, Tag } from 'lucide-react';
+import { X, Music2, Check, Link, Tag, Sparkles, Loader2, Search } from 'lucide-react';
 
-const COMMON_KEYS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B', 'Cm', 'Dm', 'Em', 'F#m', 'Am', 'Bm'];
+const COMMON_KEYS = [
+  'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
+  'Cm', 'C#m', 'Dm', 'D#m', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'
+];
+
+// Dicionário de conversão de notas latinas e normalização
+const KEY_MAP = {
+  'DO': 'C', 'DÓ': 'C',
+  'RE': 'D', 'RÉ': 'D',
+  'MI': 'E',
+  'FA': 'F', 'FÁ': 'F',
+  'SOL': 'G',
+  'LA': 'A', 'LÁ': 'A',
+  'SI': 'B'
+};
 
 export default function NewSongModal({ isOpen, onClose, onSave }) {
   const [title, setTitle] = useState('');
@@ -12,12 +26,117 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [tags, setTags] = useState('');
 
+  const [isFetchingAuto, setIsFetchingAuto] = useState(false);
+
   if (!isOpen) return null;
+
+  // Função auxiliar para sanitizar e casar o tom com a lista permitida
+  const normalizeDetectedKey = (rawKey) => {
+    if (!rawKey) return 'G';
+    
+    // Remove palavras como "Tom:", parênteses e espaços
+    let clean = rawKey.replace(/tom:?/gi, '').trim().toUpperCase();
+    
+    // Converte notas em português se existirem (ex: SOL -> G)
+    for (const [latin, cifrada] of Object.entries(KEY_MAP)) {
+      if (clean.startsWith(latin)) {
+        clean = clean.replace(latin, cifrada);
+        break;
+      }
+    }
+
+    // Busca correspondência exata nos tons suportados
+    const matched = COMMON_KEYS.find(k => k.toUpperCase() === clean);
+    if (matched) return matched;
+
+    // Tenta encontrar a nota raiz (primeira letra maiúscula + sustenido/bemol/menor)
+    const regexMatch = clean.match(/^[A-G][#B]?(M)?/i);
+    if (regexMatch) {
+      const fallback = COMMON_KEYS.find(k => k.toUpperCase() === regexMatch[0].toUpperCase());
+      if (fallback) return fallback;
+    }
+
+    return 'G';
+  };
+
+  // Busca e preenchimento automático de YouTube, Cifra e Tom
+  const handleAutoFetchSong = async () => {
+    if (!title.trim()) {
+      alert('Digita pelo menos o título do louvor para buscar.');
+      return;
+    }
+
+    try {
+      setIsFetchingAuto(true);
+      const query = `${title.trim()} ${artist.trim()}`.trim();
+
+      // 1. Gera link direto e pesquisa segura para o Cifra Club
+      const slugTitle = title.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+      const slugArtist = artist.trim() ? artist.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') : '';
+      
+      const generatedChords = slugArtist 
+        ? `https://www.cifraclub.com.br/${slugArtist}/${slugTitle}/`
+        : `https://www.cifraclub.com.br/?q=${encodeURIComponent(query)}`;
+
+      setChordsUrl(generatedChords);
+
+      // 2. Busca automática do vídeo no YouTube via endpoint público oEmbed / invidious ou geração de busca direta
+      const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query + ' louvor oficial')}`;
+      
+      // Tentativa de buscar vídeo direto via API pública de pesquisa sem necessidade de chave privada
+      try {
+        const response = await fetch(`https://invidious.io.lol/api/v1/search?q=${encodeURIComponent(query)}&type=video`);
+        if (response.ok) {
+          const results = await response.json();
+          if (results && results.length > 0 && results[0].videoId) {
+            setYoutubeUrl(`https://www.youtube.com/watch?v=${results[0].videoId}`);
+            if (!artist.trim() && results[0].author) {
+              setArtist(results[0].author.replace(' - Topic', '').replace(' Oficial', ''));
+            }
+          } else {
+            setYoutubeUrl(youtubeSearchUrl);
+          }
+        } else {
+          setYoutubeUrl(youtubeSearchUrl);
+        }
+      } catch {
+        setYoutubeUrl(youtubeSearchUrl);
+      }
+
+      // 3. Detecção e normalização do Tom (estimado pelo tom padrão comum de louvores cristãos)
+      // Se tiver padrão no nome ou tom sugerido:
+      const commonGospelDefaults = {
+        'bondade de deus': 'G',
+        'todavia me alegrarei': 'C',
+        'vitorioso és': 'D',
+        'a bênção': 'Bb',
+        'me atraiu': 'Em',
+        'acasaesua': 'A',
+        'ousado amor': 'Gb'
+      };
+
+      const lowerTitle = title.toLowerCase();
+      let detected = 'G';
+      for (const [keySong, keyVal] of Object.entries(commonGospelDefaults)) {
+        if (lowerTitle.includes(keySong)) {
+          detected = keyVal;
+          break;
+        }
+      }
+
+      setDefaultKey(normalizeDetectedKey(detected));
+
+    } catch (err) {
+      console.error('Erro no autopreenchimento:', err);
+    } finally {
+      setIsFetchingAuto(false);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim() || !artist.trim()) {
-      alert('Preencha pelo menos o título e o artista/ministério da música.');
+      alert('Preenche pelo menos o título e o artista/ministério do louvor.');
       return;
     }
 
@@ -31,7 +150,6 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
       tags: tags.trim() ? tags.split(',').map(t => t.trim()) : []
     });
 
-    // Resetar campos
     setTitle('');
     setArtist('');
     setDefaultKey('G');
@@ -66,8 +184,27 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
         {/* Formulário */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
+          {/* Título e Botão de Busca Mágica */}
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-300">Título do Louvor *</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300">Título do Louvor *</label>
+              <button
+                type="button"
+                onClick={handleAutoFetchSong}
+                disabled={isFetchingAuto || !title.trim()}
+                className="text-[11px] font-bold text-church-blue hover:text-blue-400 flex items-center gap-1 cursor-pointer disabled:opacity-40"
+              >
+                {isFetchingAuto ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" /> Buscando dados...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3" /> Puxar Cifra & YouTube
+                  </>
+                )}
+              </button>
+            </div>
             <input
               required
               type="text"
@@ -78,6 +215,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             />
           </div>
 
+          {/* Artista */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-300">Artista / Ministério *</label>
             <input
@@ -90,6 +228,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             />
           </div>
 
+          {/* Tom e BPM */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-300">Tom Padrão</label>
@@ -99,7 +238,9 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2.5 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
               >
                 {COMMON_KEYS.map((k) => (
-                  <option key={k} value={k}>Tom {k}</option>
+                  <option key={k} value={k}>
+                    Tom {k}
+                  </option>
                 ))}
               </select>
             </div>
@@ -116,6 +257,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             </div>
           </div>
 
+          {/* Link Cifra */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <Link className="w-3.5 h-3.5 text-church-blue" /> Link da Cifra (Cifra Club ou PDF)
@@ -129,9 +271,10 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             />
           </div>
 
+          {/* Link YouTube */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-              <Link className="w-3.5 h-3.5 text-church-red" /> Link do YouTube (Referência)
+              <Link className="w-3.5 h-3.5 text-church-red" /> Link do YouTube (Vídeo de Referência)
             </label>
             <input
               type="url"
@@ -142,6 +285,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             />
           </div>
 
+          {/* Tags */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <Tag className="w-3.5 h-3.5 text-slate-400" /> Tags / Categorias (separadas por vírgula)
