@@ -34,18 +34,14 @@ export default function NewScheduleModal({
   if (!isOpen) return null;
 
   // Atalhos práticos de data
+  // Atalhos práticos de data (Quinta-feira, Sábado, Domingo)
   const handleSetQuickDate = (targetDayOfWeek) => {
     const today = new Date();
     const result = new Date();
-    
-    if (targetDayOfWeek === 'today') {
-      setDate(today.toISOString().split('T')[0]);
-      return;
-    }
+    const currentDay = today.getDay(); // 0 = Domingo, 4 = Quinta, 6 = Sábado
 
-    const currentDay = today.getDay(); // 0 = Domingo, 6 = Sábado
     let daysUntil = (targetDayOfWeek - currentDay + 7) % 7;
-    if (daysUntil === 0) daysUntil = 7; // Próxima semana caso já seja hoje
+    if (daysUntil === 0) daysUntil = 7; // Seleciona a da próxima semana se hoje já for esse dia
 
     result.setDate(today.getDate() + daysUntil);
     setDate(result.toISOString().split('T')[0]);
