@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Calendar, Clock, Users, Plus, Check, Trash2, Sparkles } from 'lucide-react';
+import { X, Calendar, Clock, Users, Plus, Check, Trash2, CalendarDays } from 'lucide-react';
 
 const SCHEDULE_ROLES = [
   'Ministro(a) de Louvor',
@@ -13,6 +13,8 @@ const SCHEDULE_ROLES = [
   'Técnico de Som'
 ];
 
+const QUICK_TIMES = ['09:00', '10:00', '18:00', '19:00', '19:30', '20:00'];
+
 export default function NewScheduleModal({ 
   isOpen, 
   onClose, 
@@ -20,19 +22,34 @@ export default function NewScheduleModal({
   onSave 
 }) {
   const [title, setTitle] = useState('Culto de Celebração');
-  const [type, setType] = useState('service'); // 'service' ou 'rehearsal'
+  const [type, setType] = useState('service');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('19:00');
   const [notes, setNotes] = useState('');
 
-  // Membros escalados: [{ profile_id, full_name, role_in_schedule }]
   const [selectedMembers, setSelectedMembers] = useState([]);
-
-  // Estado temporário para adicionar membro à lista
   const [tempProfileId, setTempProfileId] = useState('');
   const [tempRole, setTempRole] = useState('Backing Vocal');
 
   if (!isOpen) return null;
+
+  // Atalhos práticos de data
+  const handleSetQuickDate = (targetDayOfWeek) => {
+    const today = new Date();
+    const result = new Date();
+    
+    if (targetDayOfWeek === 'today') {
+      setDate(today.toISOString().split('T')[0]);
+      return;
+    }
+
+    const currentDay = today.getDay(); // 0 = Domingo, 6 = Sábado
+    let daysUntil = (targetDayOfWeek - currentDay + 7) % 7;
+    if (daysUntil === 0) daysUntil = 7; // Próxima semana caso já seja hoje
+
+    result.setDate(today.getDate() + daysUntil);
+    setDate(result.toISOString().split('T')[0]);
+  };
 
   const handleAddMember = () => {
     if (!tempProfileId) {
@@ -43,7 +60,6 @@ export default function NewScheduleModal({
     const profile = profiles.find((p) => p.id === tempProfileId);
     if (!profile) return;
 
-    // Adiciona à lista de escalados
     setSelectedMembers((prev) => [
       ...prev,
       {
@@ -68,7 +84,6 @@ export default function NewScheduleModal({
       return;
     }
 
-    // Monta o timestamp completo ISO
     const eventDateTime = new Date(`${date}T${time || '00:00'}:00`).toISOString();
 
     onSave({
@@ -83,7 +98,6 @@ export default function NewScheduleModal({
       }))
     });
 
-    // Resetar
     setTitle('Culto de Celebração');
     setType('service');
     setDate('');
@@ -94,12 +108,12 @@ export default function NewScheduleModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-[#131614] border border-zinc-800 rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-[#131614] border border-zinc-800 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         
         {/* Cabeçalho */}
-        <div className="px-6 py-4 border-b border-zinc-800/80 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="px-5 py-4 border-b border-zinc-800/80 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-2xl bg-[#a3e635] text-black flex items-center justify-center font-bold text-xs shadow-md shadow-[#a3e635]/20">
               <Calendar className="w-4 h-4" />
             </div>
@@ -115,10 +129,10 @@ export default function NewScheduleModal({
         </div>
 
         {/* Formulário */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4">
           
-          {/* Tipo de Evento (Culto ou Ensaio) */}
-          <div className="grid grid-cols-2 gap-2 bg-[#0b0d0c] p-1 rounded-2xl border border-zinc-800">
+          {/* Tipo de Evento */}
+          <div className="grid grid-cols-2 gap-2 bg-[#0b0d0c] p-1.5 rounded-2xl border border-zinc-800">
             <button
               type="button"
               onClick={() => {
@@ -149,7 +163,7 @@ export default function NewScheduleModal({
             </button>
           </div>
 
-          {/* Título do Evento */}
+          {/* Título */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-zinc-300">Título da Escala *</label>
             <input
@@ -157,37 +171,83 @@ export default function NewScheduleModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Culto da Família, Ensaio de Sábado..."
-              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+              placeholder="Ex: Culto da Família, Ensaio de Louvor..."
+              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#a3e635]"
             />
           </div>
 
-          {/* Data e Horário */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5 text-[#a3e635]" /> Data *
+          {/* Data e Atalhos */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+                <CalendarDays className="w-3.5 h-3.5 text-[#a3e635]" /> Data *
               </label>
-              <input
-                required
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
-              />
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleSetQuickDate('today')}
+                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors"
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetQuickDate(6)}
+                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors"
+                >
+                  Sábado
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetQuickDate(0)}
+                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors"
+                >
+                  Domingo
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5 text-[#a3e635]" /> Horário
-              </label>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
-              />
+            <input
+              required
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635] color-scheme-dark"
+              style={{ colorScheme: 'dark' }}
+            />
+          </div>
+
+          {/* Horário com Seletor Rápido */}
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-[#a3e635]" /> Horário
+            </label>
+
+            {/* Chips de Horários Frequentes */}
+            <div className="grid grid-cols-6 gap-1.5">
+              {QUICK_TIMES.map((qt) => (
+                <button
+                  key={qt}
+                  type="button"
+                  onClick={() => setTime(qt)}
+                  className={`py-1.5 rounded-xl text-[11px] font-bold transition-all ${
+                    time === qt
+                      ? 'bg-[#a3e635] text-black shadow-sm'
+                      : 'bg-[#0b0d0c] border border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
+                  }`}
+                >
+                  {qt}
+                </button>
+              ))}
             </div>
+
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-200 focus:outline-none focus:border-[#a3e635]"
+              style={{ colorScheme: 'dark' }}
+            />
           </div>
 
           {/* Observações */}
@@ -198,22 +258,21 @@ export default function NewScheduleModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ex: Passagem de som às 18h30. Vestimenta: tons escuros."
-              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
+              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-[#a3e635]"
             />
           </div>
 
-          {/* Escalação de Voluntários */}
-          <div className="pt-3 border-t border-zinc-800/80 space-y-3">
+          {/* Escalar Voluntários */}
+          <div className="pt-3 border-t border-zinc-800/80 space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-white flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-[#a3e635]" /> Escalar Voluntários
               </label>
-              <span className="text-[11px] text-zinc-400">
+              <span className="text-[11px] text-zinc-400 font-medium">
                 {selectedMembers.length} escalado(s)
               </span>
             </div>
 
-            {/* Selecionar Membro e Função (com destaque para Backing Vocal) */}
             <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 bg-[#0b0d0c] p-3 rounded-2xl border border-zinc-800">
               <div className="sm:col-span-6">
                 <select
@@ -255,9 +314,8 @@ export default function NewScheduleModal({
               </div>
             </div>
 
-            {/* Lista dos Voluntários já adicionados na escala */}
             {selectedMembers.length > 0 && (
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                 {selectedMembers.map((member, idx) => (
                   <div
                     key={idx}
@@ -265,11 +323,7 @@ export default function NewScheduleModal({
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-bold text-white">{member.full_name}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${
-                        member.role_in_schedule.includes('Backing Vocal')
-                          ? 'bg-[#a3e635]/15 border border-[#a3e635]/30 text-[#a3e635]'
-                          : 'bg-zinc-900 border border-zinc-800 text-zinc-300'
-                      }`}>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md font-semibold bg-[#a3e635]/15 border border-[#a3e635]/30 text-[#a3e635]">
                         {member.role_in_schedule}
                       </span>
                     </div>
@@ -288,8 +342,8 @@ export default function NewScheduleModal({
             )}
           </div>
 
-          {/* Rodapé com Ações */}
-          <div className="pt-4 border-t border-zinc-800/80 flex items-center justify-end gap-2">
+          {/* Rodapé */}
+          <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
