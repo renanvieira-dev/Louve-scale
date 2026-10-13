@@ -18,22 +18,20 @@ import {
   Phone, 
   Cake, 
   Shield, 
+  ShieldCheck,
+  ShieldAlert,
   Mail, 
   Lock, 
   User, 
   LogIn, 
   Loader2, 
   Check,
-  CheckCircle2,
-  Sparkles
+  Search
 } from 'lucide-react';
 
 const AVAILABLE_ROLES = [
   'Ministro(a) de Louvor',
   'Backing Vocal',
-  'Backing Vocal (Soprano)',
-  'Backing Vocal (Contralto)',
-  'Backing Vocal (Tenor)',
   'Violão',
   'Guitarra',
   'Baixo',
@@ -59,16 +57,16 @@ export default function App() {
   const [isSongModalOpen, setIsSongModalOpen] = useState(false);
 
   // Estados da Tela de Login / Cadastro
-  const [authMode, setAuthMode] = useState('login'); // 'login' ou 'register'
+  const [authMode, setAuthMode] = useState('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authFullName, setAuthFullName] = useState('');
-  const [authSelectedRoles, setAuthSelectedRoles] = useState(['Backing Vocal']); // Múltiplas funções
+  const [authSelectedRoles, setAuthSelectedRoles] = useState(['Backing Vocal']);
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  // Sincronizar sessão do usuário
+  // 1. Verificar Sessão no Supabase
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -80,7 +78,6 @@ export default function App() {
             .eq('id', session.user.id)
             .single();
 
-          // Se logou com Google e ainda não tinha profile completo
           if (!profile) {
             const googleName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0];
             const googleAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
@@ -126,7 +123,7 @@ export default function App() {
     };
   }, []);
 
-  // Buscar Dados da Aplicação
+  // 2. Buscar Dados da Aplicação
   const fetchData = async () => {
     try {
       const { data: profilesData } = await supabase
@@ -158,7 +155,7 @@ export default function App() {
   const toggleRoleSelection = (roleName) => {
     setAuthSelectedRoles((prev) => {
       if (prev.includes(roleName)) {
-        if (prev.length === 1) return prev; // Mantém pelo menos uma
+        if (prev.length === 1) return prev;
         return prev.filter((r) => r !== roleName);
       } else {
         return [...prev, roleName];
@@ -200,7 +197,6 @@ export default function App() {
         });
         if (error) throw error;
       } else {
-        // Cadastro de Novo Voluntário
         const { data, error } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
@@ -236,6 +232,46 @@ export default function App() {
     await supabase.auth.signOut();
     setCurrentUser(null);
     setActiveTab('dashboard');
+  };
+
+  // Ativar ou Desativar Admin para um Voluntário
+  const handleToggleAdmin = async (profileId, currentRole) => {
+    const isCurrentUserAdmin = currentUser?.profile?.role === 'admin';
+    if (!isCurrentUserAdmin) {
+      alert('Apenas administradores podem gerenciar permissões.');
+      return;
+    }
+
+    const newRole = currentRole === 'admin' ? 'member' : 'admin';
+    const actionName = newRole === 'admin' ? 'conceder acesso de Administrador' : 'remover permissão de Administrador';
+
+    if (!confirm(`Deseja realmente ${actionName} para este membro?`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', profileId);
+
+      if (error) throw error;
+
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profileId ? { ...p, role: newRole } : p))
+      );
+
+      // Se alterou a própria permissão, atualiza no currentUser
+      if (profileId === currentUser?.user?.id) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          profile: { ...prev.profile, role: newRole }
+        }));
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar permissão de admin:', err);
+      alert('Não foi possível alterar a permissão.');
+    }
   };
 
   // Salvar Escala
@@ -347,7 +383,6 @@ export default function App() {
       <div className="min-h-screen bg-church-dark text-church-silver flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-church-card border border-church-border rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 animate-in fade-in">
           
-          {/* Logo e Título */}
           <div className="text-center flex flex-col items-center">
             <Logo size={46} className="mb-3" />
             <h1 className="text-2xl font-black text-white tracking-tight">
@@ -358,7 +393,6 @@ export default function App() {
             </p>
           </div>
 
-          {/* BOTÃO OFICIAL DE ENTRAR / CADASTRAR COM CONTA GOOGLE */}
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -390,14 +424,12 @@ export default function App() {
             Continuar com a Conta Google
           </button>
 
-          {/* Divisor */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-church-border"></div>
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ou com e-mail</span>
             <div className="flex-1 h-px bg-church-border"></div>
           </div>
 
-          {/* Seletor Entrar / Novo Membro */}
           <div className="grid grid-cols-2 p-1 bg-church-dark border border-church-border rounded-2xl gap-1">
             <button
               type="button"
@@ -429,7 +461,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Formulário de E-mail / Senha */}
           <form onSubmit={handleAuthSubmit} className="space-y-3.5">
             {authMode === 'register' && (
               <>
@@ -447,7 +478,6 @@ export default function App() {
                   />
                 </div>
 
-                {/* SELEÇÃO DE MÚLTIPLAS FUNÇÕES PARA A MESMA PESSOA */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
@@ -457,9 +487,6 @@ export default function App() {
                       {authSelectedRoles.length} selecionada(s)
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">
-                    Clique nas funções que você exerce (pode marcar várias):
-                  </p>
 
                   <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 rounded-xl bg-church-dark border border-church-border">
                     {AVAILABLE_ROLES.map((role) => {
@@ -531,6 +558,8 @@ export default function App() {
       </div>
     );
   }
+
+  const isCurrentUserAdmin = currentUser?.profile?.role === 'admin';
 
   // ==========================================
   // APLICAÇÃO LOGADA
@@ -720,21 +749,23 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 4: VOLUNTÁRIOS COM MÚLTIPLAS FUNÇÕES EXIBIDAS */}
+          {/* ABA 4: VOLUNTÁRIOS COMPLETA COM GESTÃO DE ADMIN */}
           {activeTab === 'members' && (
             <div className="space-y-6 animate-in fade-in">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                     Equipe e Voluntários <Users className="w-5 h-5 text-church-blue" />
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Membros ativos do ministério de louvor, instrumentos e contatos.
+                    Membros cadastrados no ministério de louvor, funções e permissões.
                   </p>
                 </div>
-                <span className="text-xs font-bold text-slate-300 bg-church-card border border-church-border px-3 py-1.5 rounded-xl">
-                  {profiles.length} voluntários
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-300 bg-church-card border border-church-border px-3 py-1.5 rounded-xl">
+                    {profiles.length} voluntários
+                  </span>
+                </div>
               </div>
 
               {filteredMembers.length === 0 ? (
@@ -758,77 +789,112 @@ export default function App() {
                           isMe ? 'border-church-blue/60 bg-blue-950/10' : 'border-church-border hover:border-slate-700'
                         }`}
                       >
-                        <div className="flex items-start gap-3">
-                          {/* Avatar */}
-                          <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center flex-shrink-0">
-                            {member.avatar_url ? (
-                              <img 
-                                src={member.avatar_url} 
-                                alt={member.full_name} 
-                                className="w-full h-full object-cover" 
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center font-black text-slate-300 text-sm bg-slate-800">
-                                {member.full_name?.charAt(0).toUpperCase() || 'V'}
+                        <div>
+                          <div className="flex items-start gap-3">
+                            {/* Avatar */}
+                            <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center flex-shrink-0">
+                              {member.avatar_url ? (
+                                <img 
+                                  src={member.avatar_url} 
+                                  alt={member.full_name} 
+                                  className="w-full h-full object-cover" 
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center font-black text-slate-300 text-sm bg-slate-800">
+                                  {member.full_name?.charAt(0).toUpperCase() || 'V'}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Informações */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h3 className="text-sm font-extrabold text-white truncate leading-tight">
+                                  {member.full_name}
+                                </h3>
+                                {isMe && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-church-blue text-white">
+                                    Você
+                                  </span>
+                                )}
+                                {isAdmin && (
+                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-church-red/20 text-church-red border border-church-red/30 flex items-center gap-0.5">
+                                    <Shield className="w-2.5 h-2.5" /> Admin
+                                  </span>
+                                )}
                               </div>
+
+                              {/* Badges de Instrumentos / Funções */}
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {memberRoles.map((r, idx) => (
+                                  <span 
+                                    key={idx} 
+                                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-950/60 border border-church-blue/30 text-blue-400"
+                                  >
+                                    {r}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Metadados: Aniversário e WhatsApp */}
+                          <div className="pt-3 mt-3 border-t border-church-border flex items-center justify-between text-xs text-slate-400">
+                            {member.birth_date ? (
+                              <span className="flex items-center gap-1 text-[11px]">
+                                <Cake className="w-3.5 h-3.5 text-church-blue" />
+                                {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(member.birth_date + 'T00:00:00'))}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-600">Sem data informada</span>
+                            )}
+
+                            {member.phone && (
+                              <a
+                                href={`https://wa.me/55${member.phone.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-slate-800 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                                title="Abrir WhatsApp"
+                              >
+                                <Phone className="w-3 h-3" /> WhatsApp
+                              </a>
                             )}
                           </div>
-
-                          {/* Nome e Badges de Múltiplas Funções */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <h3 className="text-sm font-extrabold text-white truncate leading-tight">
-                                {member.full_name}
-                              </h3>
-                              {isMe && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-church-blue text-white">
-                                  Você
-                                </span>
-                              )}
-                              {isAdmin && (
-                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-church-red/20 text-church-red border border-church-red/30 flex items-center gap-0.5">
-                                  <Shield className="w-2.5 h-2.5" /> Admin
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Tags de cada instrumento que o voluntário toca */}
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                              {memberRoles.map((r, idx) => (
-                                <span 
-                                  key={idx} 
-                                  className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-950/60 border border-church-blue/30 text-blue-400"
-                                >
-                                  {r}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
                         </div>
 
-                        {/* Metadados: Aniversário e WhatsApp */}
-                        <div className="pt-3 border-t border-church-border flex items-center justify-between text-xs text-slate-400">
-                          {member.birth_date ? (
-                            <span className="flex items-center gap-1 text-[11px]">
-                              <Cake className="w-3.5 h-3.5 text-church-blue" />
-                              {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(member.birth_date + 'T00:00:00'))}
+                        {/* BOTÃO PARA ATIVAR / DESATIVAR ADMIN (Disponível para administradores) */}
+                        {isCurrentUserAdmin && (
+                          <div className="pt-3 border-t border-church-border flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                              <Shield className="w-3 h-3 text-slate-500" /> Permissão Admin:
                             </span>
-                          ) : (
-                            <span className="text-[11px] text-slate-600">Sem data informada</span>
-                          )}
 
-                          {member.phone && (
-                            <a
-                              href={`https://wa.me/55${member.phone.replace(/\D/g, '')}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-slate-800 text-[11px] font-bold flex items-center gap-1 transition-colors"
-                              title="Abrir WhatsApp"
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAdmin(member.id, member.role)}
+                              disabled={isMe} // Evita que você remova o seu próprio admin por engano
+                              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                isMe 
+                                  ? 'opacity-40 cursor-not-allowed bg-slate-900 text-slate-500 border border-slate-800' 
+                                  : isAdmin
+                                    ? 'bg-church-red/20 hover:bg-church-red text-church-red hover:text-white border border-church-red/40'
+                                    : 'bg-church-blue/20 hover:bg-church-blue text-church-blue hover:text-white border border-church-blue/40'
+                              }`}
+                              title={isMe ? 'Você não pode revogar o seu próprio acesso de admin' : 'Alterar cargo de administrador'}
                             >
-                              <Phone className="w-3 h-3" /> WhatsApp
-                            </a>
-                          )}
-                        </div>
+                              {isAdmin ? (
+                                <>
+                                  <ShieldAlert className="w-3.5 h-3.5" /> Remover Admin
+                                </>
+                              ) : (
+                                <>
+                                  <ShieldCheck className="w-3.5 h-3.5" /> Tornar Admin
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        )}
 
                       </div>
                     );
