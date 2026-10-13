@@ -23,13 +23,17 @@ import {
   User, 
   LogIn, 
   Loader2, 
+  Check,
   CheckCircle2,
-  Search
+  Sparkles
 } from 'lucide-react';
 
-const INSTRUMENT_OPTIONS = [
+const AVAILABLE_ROLES = [
   'Ministro(a) de Louvor',
   'Backing Vocal',
+  'Backing Vocal (Soprano)',
+  'Backing Vocal (Contralto)',
+  'Backing Vocal (Tenor)',
   'Violão',
   'Guitarra',
   'Baixo',
@@ -59,11 +63,12 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authFullName, setAuthFullName] = useState('');
-  const [authInstrument, setAuthInstrument] = useState('Backing Vocal');
+  const [authSelectedRoles, setAuthSelectedRoles] = useState(['Backing Vocal']); // Múltiplas funções
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  // 1. Verificar Sessão no Supabase
+  // Sincronizar sessão do usuário
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -74,6 +79,21 @@ export default function App() {
             .select('*')
             .eq('id', session.user.id)
             .single();
+
+          // Se logou com Google e ainda não tinha profile completo
+          if (!profile) {
+            const googleName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0];
+            const googleAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
+            
+            await supabase.from('profiles').upsert({
+              id: session.user.id,
+              full_name: googleName,
+              avatar_url: googleAvatar,
+              roles: ['Backing Vocal'],
+              instrument_role: 'Backing Vocal',
+              role: 'member'
+            });
+          }
 
           setCurrentUser({ user: session.user, profile: profile || {} });
         } else {
@@ -106,24 +126,21 @@ export default function App() {
     };
   }, []);
 
-  // 2. Buscar Dados da Aplicação
+  // Buscar Dados da Aplicação
   const fetchData = async () => {
     try {
-      // Buscar Perfis de Voluntários
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('*')
         .order('full_name', { ascending: true });
       if (profilesData) setProfiles(profilesData);
 
-      // Buscar Louvores
       const { data: songsData } = await supabase
         .from('songs')
         .select('*')
         .order('title', { ascending: true });
       if (songsData) setSongs(songsData);
 
-      // Buscar Escalas
       const schedulesData = await schedulesService.getSchedules();
       if (schedulesData) setSchedules(schedulesData);
     } catch (err) {
@@ -137,7 +154,39 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Ações de Login e Cadastro
+  // Alternar função na lista de múltiplas funções
+  const toggleRoleSelection = (roleName) => {
+    setAuthSelectedRoles((prev) => {
+      if (prev.includes(roleName)) {
+        if (prev.length === 1) return prev; // Mantém pelo menos uma
+        return prev.filter((r) => r !== roleName);
+      } else {
+        return [...prev, roleName];
+      }
+    });
+  };
+
+  // Login com Conta Google
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+      setAuthError('');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+    } catch (err) {
+      console.error('Erro no login com Google:', err);
+      setAuthError(err.message || 'Erro ao conectar com o Google.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  // Login / Cadastro com E-mail e Senha
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -145,7 +194,7 @@ export default function App() {
 
     try {
       if (authMode === 'login') {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
           email: authEmail.trim(),
           password: authPassword
         });
@@ -158,19 +207,19 @@ export default function App() {
           options: {
             data: {
               full_name: authFullName.trim(),
-              instrument_role: authInstrument
+              instrument_role: authSelectedRoles[0] || 'Voluntário',
+              roles: authSelectedRoles
             }
           }
         });
         if (error) throw error;
 
-        // Inserir registro na tabela profiles se necessário
         if (data.user) {
           await supabase.from('profiles').upsert({
             id: data.user.id,
             full_name: authFullName.trim(),
-            instrument_role: authInstrument,
-            roles: [authInstrument],
+            roles: authSelectedRoles,
+            instrument_role: authSelectedRoles[0] || 'Voluntário',
             role: 'member'
           });
         }
@@ -197,7 +246,7 @@ export default function App() {
       setIsScheduleModalOpen(false);
     } catch (err) {
       console.error('Erro ao criar escala:', err);
-      alert('Erro ao salvar a escala.');
+      alert('Erro ao salvar escala.');
     }
   };
 
@@ -281,7 +330,6 @@ export default function App() {
     );
   });
 
-  // Tela de Carregamento
   if (loading) {
     return (
       <div className="min-h-screen bg-church-dark flex flex-col items-center justify-center gap-3 text-slate-400">
@@ -292,12 +340,12 @@ export default function App() {
   }
 
   // ==========================================
-  // TELA DE LOGIN / CADASTRO (Quando não logado)
+  // TELA DE LOGIN / CADASTRO COM GOOGLE & MÚLTIPLAS FUNÇÕES
   // ==========================================
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-church-dark text-church-silver flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-church-card border border-church-border rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 animate-in fade-in">
+        <div className="w-full max-w-md bg-church-card border border-church-border rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 animate-in fade-in">
           
           {/* Logo e Título */}
           <div className="text-center flex flex-col items-center">
@@ -310,7 +358,46 @@ export default function App() {
             </p>
           </div>
 
-          {/* Abas Entrar / Cadastrar */}
+          {/* BOTÃO OFICIAL DE ENTRAR / CADASTRAR COM CONTA GOOGLE */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading}
+            className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-2xl flex items-center justify-center gap-3 font-bold text-xs text-white transition-all cursor-pointer shadow-md hover:border-slate-500"
+          >
+            {googleLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin text-church-blue" />
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+            )}
+            Continuar com a Conta Google
+          </button>
+
+          {/* Divisor */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-church-border"></div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">ou com e-mail</span>
+            <div className="flex-1 h-px bg-church-border"></div>
+          </div>
+
+          {/* Seletor Entrar / Novo Membro */}
           <div className="grid grid-cols-2 p-1 bg-church-dark border border-church-border rounded-2xl gap-1">
             <button
               type="button"
@@ -342,7 +429,7 @@ export default function App() {
             </div>
           )}
 
-          {/* Formulário de Acesso */}
+          {/* Formulário de E-mail / Senha */}
           <form onSubmit={handleAuthSubmit} className="space-y-3.5">
             {authMode === 'register' && (
               <>
@@ -360,21 +447,40 @@ export default function App() {
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                    <Music2 className="w-3.5 h-3.5 text-church-blue" /> Função Principal *
-                  </label>
-                  <select
-                    value={authInstrument}
-                    onChange={(e) => setAuthInstrument(e.target.value)}
-                    className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue font-bold"
-                  >
-                    {INSTRUMENT_OPTIONS.map((inst) => (
-                      <option key={inst} value={inst}>
-                        {inst}
-                      </option>
-                    ))}
-                  </select>
+                {/* SELEÇÃO DE MÚLTIPLAS FUNÇÕES PARA A MESMA PESSOA */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                      <Music2 className="w-3.5 h-3.5 text-church-blue" /> Funções no Louvor *
+                    </label>
+                    <span className="text-[10px] text-slate-400 font-semibold">
+                      {authSelectedRoles.length} selecionada(s)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Clique nas funções que você exerce (pode marcar várias):
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto p-1 rounded-xl bg-church-dark border border-church-border">
+                    {AVAILABLE_ROLES.map((role) => {
+                      const isSelected = authSelectedRoles.includes(role);
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => toggleRoleSelection(role)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                            isSelected
+                              ? 'bg-church-blue text-white border-church-blue shadow-sm shadow-blue-600/30'
+                              : 'bg-church-card text-slate-400 border-church-border hover:border-slate-600 hover:text-white'
+                          }`}
+                        >
+                          {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          {role}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </>
             )}
@@ -447,7 +553,7 @@ export default function App() {
         {/* Conteúdo Principal */}
         <main className="flex-1 mt-6">
           
-          {/* ABA 1: PAINEL GERAL */}
+          {/* ABA 1: PAINEL */}
           {activeTab === 'dashboard' && (
             <DashboardOverview
               songs={songs}
@@ -614,7 +720,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 4: VOLUNTÁRIOS COMPLETA */}
+          {/* ABA 4: VOLUNTÁRIOS COM MÚLTIPLAS FUNÇÕES EXIBIDAS */}
           {activeTab === 'members' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex items-center justify-between">
@@ -641,9 +747,9 @@ export default function App() {
                   {filteredMembers.map((member) => {
                     const isMe = member.id === currentUser?.user?.id;
                     const isAdmin = member.role === 'admin';
-                    const mainRole = Array.isArray(member.roles) && member.roles.length > 0 
-                      ? member.roles.join(', ') 
-                      : (member.instrument_role || 'Voluntário');
+                    const memberRoles = Array.isArray(member.roles) && member.roles.length > 0 
+                      ? member.roles 
+                      : [member.instrument_role || 'Voluntário'];
 
                     return (
                       <div 
@@ -668,7 +774,7 @@ export default function App() {
                             )}
                           </div>
 
-                          {/* Dados do Voluntário */}
+                          {/* Nome e Badges de Múltiplas Funções */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <h3 className="text-sm font-extrabold text-white truncate leading-tight">
@@ -686,9 +792,17 @@ export default function App() {
                               )}
                             </div>
 
-                            <span className="text-xs text-church-blue font-semibold block truncate mt-1">
-                              {mainRole}
-                            </span>
+                            {/* Tags de cada instrumento que o voluntário toca */}
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {memberRoles.map((r, idx) => (
+                                <span 
+                                  key={idx} 
+                                  className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-950/60 border border-church-blue/30 text-blue-400"
+                                >
+                                  {r}
+                                </span>
+                              ))}
+                            </div>
                           </div>
                         </div>
 
