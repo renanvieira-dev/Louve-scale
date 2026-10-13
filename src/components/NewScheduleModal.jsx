@@ -11,7 +11,10 @@ import {
   Music2, 
   FileText, 
   Video,
-  ListMusic
+  Search,
+  Loader2,
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 
 const SCHEDULE_ROLES = [
@@ -31,6 +34,25 @@ const COMMON_KEYS = [
   'Cm', 'C#m', 'Dm', 'D#m', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'
 ];
 
+const DEFAULT_TONES_MAP = {
+  'e ele': 'E',
+  'é ele': 'E',
+  'tu es + e ele': 'E',
+  'tu és + é ele': 'E',
+  'bondade de deus': 'G',
+  'todavia me alegrarei': 'C',
+  'ousado amor': 'Gb',
+  'oh quao lindo': 'D',
+  'oh quão lindo': 'D',
+  'a bencao': 'Bb',
+  'a bênção': 'Bb',
+  'me atraiu': 'Em',
+  'a casa e sua': 'A',
+  'a casa é sua': 'A',
+  'ruja o leao': 'C#m',
+  'ruja o leão': 'C#m'
+};
+
 const QUICK_TIMES = ['09:00', '10:00', '18:00', '19:00', '19:30', '20:00'];
 
 export default function NewScheduleModal({ 
@@ -39,7 +61,8 @@ export default function NewScheduleModal({
   profiles = [], 
   songs = [],
   scheduleToEdit = null,
-  onSave 
+  onSave,
+  onCreateSong
 }) {
   const [title, setTitle] = useState('Culto de Celebração');
   const [type, setType] = useState('service');
@@ -57,7 +80,19 @@ export default function NewScheduleModal({
   const [tempSongId, setTempSongId] = useState('');
   const [tempSongKey, setTempSongKey] = useState('');
 
-  // Se houver scheduleToEdit, preenche os campos automaticamente
+  // Modo de Adição Direta de Música (sem sair da escala)
+  const [showQuickAddSong, setShowQuickAddSong] = useState(false);
+  const [quickSearchTerm, setQuickSearchTerm] = useState('');
+  const [quickIsSearching, setQuickIsSearching] = useState(false);
+  const [quickSearchResults, setQuickSearchResults] = useState([]);
+  const [quickTitle, setQuickTitle] = useState('');
+  const [quickArtist, setQuickArtist] = useState('');
+  const [quickKey, setQuickKey] = useState('G');
+  const [quickChords, setQuickChords] = useState('');
+  const [quickYoutube, setQuickYoutube] = useState('');
+  const [quickBpm, setQuickBpm] = useState('');
+  const [isSavingQuickSong, setIsSavingQuickSong] = useState(false);
+
   useEffect(() => {
     if (scheduleToEdit) {
       setTitle(scheduleToEdit.title || 'Culto de Celebração');
@@ -76,7 +111,6 @@ export default function NewScheduleModal({
         setTime(`${hh}:${min}`);
       }
 
-      // Membros
       if (scheduleToEdit.schedule_members) {
         setSelectedMembers(
           scheduleToEdit.schedule_members.map((m) => ({
@@ -87,7 +121,6 @@ export default function NewScheduleModal({
         );
       }
 
-      // Músicas
       if (scheduleToEdit.schedule_songs) {
         setSelectedSongs(
           scheduleToEdit.schedule_songs.map((s) => ({
@@ -99,7 +132,6 @@ export default function NewScheduleModal({
         );
       }
     } else {
-      // Criação limpa
       setTitle('Culto de Celebração');
       setType('service');
       setDate('');
@@ -108,6 +140,7 @@ export default function NewScheduleModal({
       setSelectedMembers([]);
       setSelectedSongs([]);
     }
+    setShowQuickAddSong(false);
   }, [scheduleToEdit, isOpen, profiles, songs]);
 
   if (!isOpen) return null;
@@ -124,7 +157,7 @@ export default function NewScheduleModal({
     setDate(result.toISOString().split('T')[0]);
   };
 
-  // Adicionar Voluntário
+  // Adicionar Membro
   const handleAddMember = () => {
     if (!tempProfileId) {
       alert('Selecione um voluntário.');
@@ -150,8 +183,8 @@ export default function NewScheduleModal({
     setSelectedMembers((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Adicionar Música ao Repertório da Escala
-  const handleAddSong = () => {
+  // Adicionar Música Existente do Repertório
+  const handleAddExistingSong = () => {
     if (!tempSongId) {
       alert('Selecione uma música do repertório.');
       return;
@@ -176,6 +209,135 @@ export default function NewScheduleModal({
 
   const handleRemoveSong = (idx) => {
     setSelectedSongs((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // 1. Busca rápida de louvores dentro da escala
+  const handleQuickSearchTrack = async (e) => {
+    e?.preventDefault();
+    if (!quickSearchTerm.trim()) return;
+
+    try {
+      setQuickIsSearching(true);
+      setQuickSearchResults([]);
+
+      const response = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(quickSearchTerm.trim())}&entity=song&limit=6&country=BR`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const tracks = data.results || [];
+        const formatted = tracks.map((track) => {
+          const trackTitle = track.trackName;
+          const artistName = track.artistName;
+
+          const cleanArtist = artistName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+          const cleanSong = trackTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+
+          let estimatedKey = 'G';
+          const normTitle = trackTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          for (const [pattern, keyVal] of Object.entries(DEFAULT_TONES_MAP)) {
+            if (normTitle.includes(pattern)) {
+              estimatedKey = keyVal;
+              break;
+            }
+          }
+
+          return {
+            title: trackTitle,
+            artist: artistName,
+            thumbnail: track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb.jpg', '200x200bb.jpg') : '',
+            chordsUrl: `https://www.cifraclub.com.br/${cleanArtist}/${cleanSong}/`,
+            youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(trackTitle + ' ' + artistName + ' oficial')}`,
+            key: estimatedKey
+          };
+        });
+        setQuickSearchResults(formatted);
+      }
+    } catch (err) {
+      console.error('Erro na busca rápida:', err);
+    } finally {
+      setQuickIsSearching(false);
+    }
+  };
+
+  // 2. Preencher formulário rápido ao selecionar versão
+  const handleSelectQuickTrack = async (track) => {
+    setQuickTitle(track.title);
+    setQuickArtist(track.artist);
+    setQuickChords(track.chordsUrl);
+    setQuickKey(track.key || 'G');
+    setQuickSearchResults([]);
+
+    // Tentar resolver link direto de vídeo
+    try {
+      const query = `${track.title} ${track.artist} oficial`;
+      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const match = data.contents && data.contents.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+        if (match && match[1]) {
+          setQuickYoutube(`https://www.youtube.com/watch?v=${match[1]}`);
+          return;
+        }
+      }
+    } catch {
+      // fallback
+    }
+    setQuickYoutube(track.youtubeUrl);
+  };
+
+  // 3. Salvar nova música e inseri-la instantaneamente na escala
+  const handleSaveAndAttachSong = async (e) => {
+    e.preventDefault();
+    if (!quickTitle.trim() || !quickArtist.trim()) {
+      alert('Preencha o título e o artista da nova música.');
+      return;
+    }
+
+    if (!onCreateSong) {
+      alert('Função de criação de música não configurada.');
+      return;
+    }
+
+    try {
+      setIsSavingQuickSong(true);
+      const newSong = await onCreateSong({
+        title: quickTitle.trim(),
+        artist: quickArtist.trim(),
+        default_key: quickKey,
+        bpm: quickBpm ? parseInt(quickBpm, 10) : null,
+        chords_url: quickChords.trim() || null,
+        youtube_url: quickYoutube.trim() || null,
+        tags: []
+      });
+
+      if (newSong && newSong.id) {
+        setSelectedSongs((prev) => [
+          ...prev,
+          {
+            song_id: newSong.id,
+            title: newSong.title,
+            artist: newSong.artist,
+            custom_key: newSong.default_key || 'C'
+          }
+        ]);
+      }
+
+      // Resetar formulário rápido
+      setQuickTitle('');
+      setQuickArtist('');
+      setQuickChords('');
+      setQuickYoutube('');
+      setQuickBpm('');
+      setQuickSearchTerm('');
+      setQuickSearchResults([]);
+      setShowQuickAddSong(false);
+    } catch (err) {
+      console.error('Erro ao adicionar música na escala:', err);
+    } finally {
+      setIsSavingQuickSong(false);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -365,60 +527,200 @@ export default function NewScheduleModal({
             />
           </div>
 
-          {/* REPERTÓRIO DE LOUVORES DA ESCALA */}
+          {/* SEÇÃO: MÚSICAS DA ESCALA + CADASTRO DIRETO */}
           <div className="pt-3 border-t border-church-border space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-white flex items-center gap-1.5">
                 <Music2 className="w-3.5 h-3.5 text-church-blue" /> Músicas da Escala
               </label>
-              <span className="text-[11px] text-slate-400 font-semibold">
-                {selectedSongs.length} música(s) no repertório
-              </span>
+
+              {/* Botão de Alternar para Cadastrar Nova Música Direto */}
+              <button
+                type="button"
+                onClick={() => setShowQuickAddSong(!showQuickAddSong)}
+                className={`text-[11px] font-bold px-2.5 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
+                  showQuickAddSong
+                    ? 'bg-church-dark text-slate-300 border border-church-border'
+                    : 'bg-church-blue/15 hover:bg-church-blue text-church-blue hover:text-white border border-church-blue/30'
+                }`}
+              >
+                {showQuickAddSong ? (
+                  <>Voltar ao Repertório</>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5" /> Cadastrar Nova Música
+                  </>
+                )}
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 bg-church-dark p-3 rounded-2xl border border-church-border">
-              <select
-                value={tempSongId}
-                onChange={(e) => {
-                  const sId = e.target.value;
-                  setTempSongId(sId);
-                  const found = songs.find(x => x.id === sId);
-                  if (found) setTempSongKey(found.default_key || 'C');
-                }}
-                className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
-              >
-                <option value="">Selecione a música do repertório...</option>
-                {songs.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.title} - {s.artist} (Tom {s.default_key || 'C'})
-                  </option>
-                ))}
-              </select>
+            {/* PAINEL 1: CADASTRAR NOVA MÚSICA DIRETO NA ESCALA */}
+            {showQuickAddSong ? (
+              <div className="bg-church-dark p-3.5 rounded-2xl border border-church-blue/40 space-y-3 animate-in fade-in">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-white flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-church-blue" /> Cadastrar & Inserir na Escala
+                  </span>
+                  <span className="text-[10px] text-slate-400">Puxa cifra, vídeo e tom</span>
+                </div>
 
-              <div className="flex gap-2">
-                <select
-                  value={tempSongKey}
-                  onChange={(e) => setTempSongKey(e.target.value)}
-                  className="w-28 box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue font-bold"
+                {/* Busca Rápida de Versões */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={quickSearchTerm}
+                    onChange={(e) => setQuickSearchTerm(e.target.value)}
+                    placeholder="Digite o louvor (ex: É Ele Drops)..."
+                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleQuickSearchTrack}
+                    disabled={quickIsSearching || !quickSearchTerm.trim()}
+                    className="px-3 py-1.5 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl transition-all disabled:opacity-40 flex items-center gap-1 cursor-pointer flex-shrink-0"
+                  >
+                    {quickIsSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+                    Buscar
+                  </button>
+                </div>
+
+                {/* Lista de Versões Encontradas */}
+                {quickSearchResults.length > 0 && (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {quickSearchResults.map((track, i) => (
+                      <div
+                        key={i}
+                        onClick={() => handleSelectQuickTrack(track)}
+                        className="p-2 rounded-xl bg-church-card hover:bg-slate-800 border border-church-border flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          {track.thumbnail && (
+                            <img src={track.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                          )}
+                          <div className="min-w-0 truncate">
+                            <span className="text-xs font-bold text-white block truncate">{track.title}</span>
+                            <span className="text-[10px] text-slate-400 block truncate">{track.artist}</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-church-blue bg-blue-950/60 px-2 py-0.5 rounded-lg border border-church-blue/30 flex-shrink-0">
+                          Preencher
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Campos da Nova Música */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={quickTitle}
+                    onChange={(e) => setQuickTitle(e.target.value)}
+                    placeholder="Título *"
+                    className="bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                  />
+                  <input
+                    type="text"
+                    value={quickArtist}
+                    onChange={(e) => setQuickArtist(e.target.value)}
+                    placeholder="Artista / Versão *"
+                    className="bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={quickKey}
+                    onChange={(e) => setQuickKey(e.target.value)}
+                    className="bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-church-blue font-bold"
+                  >
+                    {COMMON_KEYS.map((k) => (
+                      <option key={k} value={k}>Tom {k}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    value={quickBpm}
+                    onChange={(e) => setQuickBpm(e.target.value)}
+                    placeholder="BPM (opcional)"
+                    className="bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={quickChords}
+                    onChange={(e) => setQuickChords(e.target.value)}
+                    placeholder="Link Cifra Club..."
+                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                  />
+                  <input
+                    type="url"
+                    value={quickYoutube}
+                    onChange={(e) => setQuickYoutube(e.target.value)}
+                    placeholder="Link YouTube..."
+                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAndAttachSong}
+                  disabled={isSavingQuickSong || !quickTitle.trim() || !quickArtist.trim()}
+                  className="w-full py-2 bg-church-blue hover:bg-church-blue-hover disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-blue-600/30"
                 >
-                  <option value="">Tom...</option>
-                  {COMMON_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      Tom {k}
+                  {isSavingQuickSong ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                  Salvar e Inserir na Escala
+                </button>
+              </div>
+            ) : (
+              /* PAINEL 2: SELECIONAR DO REPERTÓRIO EXISTENTE */
+              <div className="grid grid-cols-1 gap-2 bg-church-dark p-3 rounded-2xl border border-church-border">
+                <select
+                  value={tempSongId}
+                  onChange={(e) => {
+                    const sId = e.target.value;
+                    setTempSongId(sId);
+                    const found = songs.find(x => x.id === sId);
+                    if (found) setTempSongKey(found.default_key || 'C');
+                  }}
+                  className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+                >
+                  <option value="">Selecione a música do repertório...</option>
+                  {songs.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.title} - {s.artist} (Tom {s.default_key || 'C'})
                     </option>
                   ))}
                 </select>
 
-                <button
-                  type="button"
-                  onClick={handleAddSong}
-                  className="flex-1 py-2 px-3 bg-church-blue hover:bg-church-blue-hover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm shadow-blue-600/20"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar Louvor
-                </button>
-              </div>
-            </div>
+                <div className="flex gap-2">
+                  <select
+                    value={tempSongKey}
+                    onChange={(e) => setTempSongKey(e.target.value)}
+                    className="w-28 box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue font-bold"
+                  >
+                    <option value="">Tom...</option>
+                    {COMMON_KEYS.map((k) => (
+                      <option key={k} value={k}>
+                        Tom {k}
+                      </option>
+                    ))}
+                  </select>
 
+                  <button
+                    type="button"
+                    onClick={handleAddExistingSong}
+                    className="flex-1 py-2 px-3 bg-church-blue hover:bg-church-blue-hover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm shadow-blue-600/20"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Adicionar Louvor
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* LISTA DE MÚSICAS JÁ ADICIONADAS À ESCALA */}
             {selectedSongs.length > 0 && (
               <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                 {selectedSongs.map((song, idx) => (
@@ -450,7 +752,7 @@ export default function NewScheduleModal({
             )}
           </div>
 
-          {/* VOLUNTÁRIOS ESCALADOS */}
+          {/* SEÇÃO: VOLUNTÁRIOS ESCALADOS */}
           <div className="pt-3 border-t border-church-border space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -516,7 +818,6 @@ export default function NewScheduleModal({
                       type="button"
                       onClick={() => handleRemoveMember(idx)}
                       className="text-slate-500 hover:text-church-red p-1 rounded-lg transition-colors cursor-pointer flex-shrink-0"
-                      title="Remover da escala"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
