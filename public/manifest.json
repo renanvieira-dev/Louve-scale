@@ -1,0 +1,17 @@
+{
+  "name": "LouveScale",
+  "short_name": "LouveScale",
+  "description": "Gestão de Louvor, Escalas e Repertório",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d0c",
+  "theme_color": "#0b0d0c",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
