@@ -24,43 +24,62 @@ export const schedulesService = {
   },
 
   // Suporte a 'type' (service ou rehearsal)
-  async createSchedule({ title, event_date, notes, type = 'service', members, selectedSongs }) {
-    const { data: scheduleData, error: sError } = await supabase
+  async createSchedule({ title, type, event_date, notes, members = [] }) {
+    // 1. Criar a escala na tabela schedules
+    const { data: scheduleData, error: scheduleError } = await supabase
       .from('schedules')
-      .insert([{ title, event_date, notes, type }])
+      .insert([
+        {
+          title,
+          type: type || 'service',
+          event_date,
+          notes: notes || null
+        }
+      ])
       .select()
       .single();
 
-    if (sError) throw sError;
-    const scheduleId = scheduleData.id;
+    if (scheduleError) {
+      console.error('Erro ao inserir em schedules:', scheduleError);
+      throw new Error(`Erro na escala: ${scheduleError.message}`);
+    }
 
-    if (members && members.length > 0) {
-      const membersToInsert = members.map((m) => ({
-        schedule_id: scheduleId,
-        user_name: m.user_name,
-        role: m.role,
-        status: 'pending'
+    // 2. Se houver voluntários escalados, inserir em schedule_members
+    if (members.length > 0 && scheduleData?.id) {
+      const payload = members.map((m) => ({
+        schedule_id: scheduleData.id,
+        profile_id: m.profile_id,
+        user_id: m.profile_id, // compatibilidade caso a coluna no banco seja user_id
+        role: m.role || 'Voluntário',
+        status: m.status || 'pending'
       }));
-      const { error: mError } = await supabase
+
+      const { error: membersError } = await supabase
         .from('schedule_members')
-        .insert(membersToInsert);
-      if (mError) throw mError;
+        .insert(payload);
+
+      if (membersError) {
+        console.error('Erro ao inserir em schedule_members:', membersError);
+        // Tenta sem 'user_id' caso dê erro de coluna inexistente
+        const fallbackPayload = members.map((m) => ({
+          schedule_id: scheduleData.id,
+          profile_id: m.profile_id,
+          role: m.role || 'Voluntário',
+          status: m.status || 'pending'
+        }));
+
+        const { error: fallbackError } = await supabase
+          .from('schedule_members')
+          .insert(fallbackPayload);
+
+        if (fallbackError) {
+          console.error('Erro detalhado no fallback de schedule_members:', fallbackError);
+          throw new Error(`Erro ao escalar membros: ${fallbackError.message}`);
+        }
+      }
     }
 
-    if (selectedSongs && selectedSongs.length > 0) {
-      const songsToInsert = selectedSongs.map((s, index) => ({
-        schedule_id: scheduleId,
-        song_id: s.id,
-        song_key: s.custom_key || s.default_key,
-        order_index: index + 1
-      }));
-      const { error: soError } = await supabase
-        .from('schedule_songs')
-        .insert(songsToInsert);
-      if (soError) throw soError;
-    }
-
-    return scheduleId;
+    return scheduleData;
   },
 
   async deleteSchedule(scheduleId) {

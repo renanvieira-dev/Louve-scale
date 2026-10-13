@@ -144,8 +144,9 @@ export default function App() {
       await schedulesService.createSchedule(schedulePayload);
       const updated = await schedulesService.getSchedules();
       setSchedules(updated);
-    } catch {
-      alert('Erro ao criar escala.');
+    } catch (err) {
+      console.error('Erro detalhado:', err);
+      alert(err?.message || 'Erro ao criar escala.');
     }
   };
 
