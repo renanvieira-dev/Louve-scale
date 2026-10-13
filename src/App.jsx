@@ -21,7 +21,7 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 1. Escuta contínua de sessão e persistência com authStateChange
+  // 1. Escuta contínua de sessão e sincronização
   useEffect(() => {
     let isMounted = true;
 
@@ -54,7 +54,7 @@ export default function App() {
     };
   }, []);
 
-  // 2. Carregar dados do Supabase
+  // 2. Carregar dados das coleções
   const loadData = async () => {
     try {
       setIsLoading(true);
@@ -82,6 +82,24 @@ export default function App() {
   const handleLogout = async () => {
     await authService.signOut();
     setCurrentUser(null);
+  };
+
+  // Upload de Foto de Perfil
+  const handleAvatarUpload = async (file) => {
+    if (!currentUser?.user?.id) return;
+    const newUrl = await authService.uploadAvatar(currentUser.user.id, file);
+
+    setCurrentUser((prev) => ({
+      ...prev,
+      profile: {
+        ...(prev?.profile || {}),
+        avatar_url: newUrl
+      }
+    }));
+
+    setProfiles((prev) =>
+      prev.map((p) => (p.id === currentUser.user.id ? { ...p, avatar_url: newUrl } : p))
+    );
   };
 
   // Músicas: Cadastrar, Editar e Excluir
@@ -209,7 +227,7 @@ export default function App() {
     }
   };
 
-  // Voluntários: Atualizar papéis e funções
+  // Voluntários: Atualização de papéis
   const handleProfileUpdated = (userId, updatedFields) => {
     setProfiles((prev) =>
       prev.map((p) => (p.id === userId ? { ...p, ...updatedFields } : p))
@@ -241,6 +259,7 @@ export default function App() {
           setSearchQuery={setSearchQuery}
           currentUser={currentUser}
           onLogout={handleLogout}
+          onAvatarUpload={handleAvatarUpload}
         />
 
         <main className="flex-1 mt-6">
