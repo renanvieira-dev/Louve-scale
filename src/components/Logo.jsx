@@ -1,25 +1,24 @@
 import React from 'react';
 
-export default function Logo({ size = 36, className = '' }) {
+export default function Logo({ size = 34, className = '' }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 512 512"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
+    <div 
+      className={`relative flex items-center justify-center rounded-2xl p-1.5 bg-gradient-to-br from-slate-900 via-[#0d1527] to-[#070a13] border border-blue-500/30 shadow-md shadow-blue-900/30 ${className}`}
+      style={{ width: size, height: size }}
     >
-      <rect width="512" height="512" rx="128" fill="#0b0d0c"/>
-      <rect x="8" y="8" width="496" height="496" rx="120" stroke="#a3e635" stroke-opacity="0.3" stroke-width="12"/>
-      <circle cx="256" cy="256" r="160" fill="#a3e635" fill-opacity="0.1"/>
-      <rect x="232" y="96" width="48" height="320" rx="24" fill="#a3e635"/>
-      <rect x="136" y="192" width="240" height="48" rx="24" fill="#a3e635"/>
-      <rect x="160" y="272" width="28" height="88" rx="14" fill="#a3e635" fill-opacity="0.75"/>
-      <rect x="88" y="220" width="28" height="112" rx="14" fill="#a3e635" fill-opacity="0.45"/>
-      <rect x="324" y="272" width="28" height="88" rx="14" fill="#a3e635" fill-opacity="0.75"/>
-      <rect x="396" y="220" width="28" height="112" rx="14" fill="#a3e635" fill-opacity="0.45"/>
-      <circle cx="256" cy="64" r="14" fill="#ffffff"/>
-    </svg>
+      {/* Ícone Original do LouveScale (Cruz estilizada com ondas de louvor) */}
+      <svg 
+        viewBox="0 0 24 24" 
+        fill="none" 
+        stroke="currentColor" 
+        strokeWidth="2" 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        className="w-full h-full text-blue-500"
+      >
+        <path d="M12 2v20" />
+        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+      </svg>
+    </div>
   );
 }
