@@ -25,7 +25,7 @@ export const schedulesService = {
 
   // Suporte a 'type' (service ou rehearsal)
   async createSchedule({ title, type, event_date, notes, members = [] }) {
-    // 1. Criar o registo principal da escala
+    // 1. Inserir a escala principal
     const { data: scheduleData, error: scheduleError } = await supabase
       .from('schedules')
       .insert([
@@ -40,11 +40,11 @@ export const schedulesService = {
       .single();
 
     if (scheduleError) {
-      console.error('Erro ao inserir em schedules:', scheduleError);
-      throw new Error(`Erro na escala: ${scheduleError.message}`);
+      console.error('Erro ao registar em schedules:', scheduleError);
+      throw scheduleError;
     }
 
-    // 2. Se houver voluntários escalados, inserir em schedule_members
+    // 2. Inserir membros escalados caso existam
     if (members && members.length > 0 && scheduleData?.id) {
       const payload = members.map((m) => ({
         schedule_id: scheduleData.id,
@@ -58,8 +58,7 @@ export const schedulesService = {
         .insert(payload);
 
       if (membersError) {
-        console.error('Erro detalhado em schedule_members:', membersError);
-        throw new Error(`Erro ao vincular voluntários: ${membersError.message}`);
+        console.warn('Aviso: Escala criada, mas ocorreu um erro nos membros:', membersError);
       }
     }
 
