@@ -1,20 +1,31 @@
 import React from 'react';
-import { Music2, Calendar, Users, Cake, ArrowRight, Clock, Sparkles } from 'lucide-react';
+import { 
+  Music2, 
+  Calendar, 
+  Users, 
+  Cake, 
+  ArrowRight, 
+  Clock, 
+  Sparkles, 
+  ShieldCheck 
+} from 'lucide-react';
 
 export default function DashboardOverview({ 
   songs = [], 
   schedules = [], 
   profiles = [], 
-  onNavigate 
+  onNavigate,
+  isAdmin = false,
+  onOpenTeamManagement
 }) {
   const currentDate = new Date();
-  const currentMonth = currentDate.getMonth();
+  const currentMonth = currentDate.getMonth(); // 0 a 11
   const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(currentDate);
 
   // Filtrar aniversariantes do mês atual
   const birthdayMembers = profiles.filter((member) => {
     if (!member.birth_date) return false;
-    const parts = member.birth_date.split('-');
+    const parts = member.birth_date.split('-'); // YYYY-MM-DD
     if (parts.length < 3) return false;
     const birthMonth = parseInt(parts[1], 10) - 1;
     return birthMonth === currentMonth;
@@ -29,7 +40,7 @@ export default function DashboardOverview({
     };
   }).sort((a, b) => a.day - b.day);
 
-  // Próximo evento (culto ou ensaio)
+  // Encontrar o próximo evento futuro (culto ou ensaio)
   const nextSchedule = schedules
     .filter(s => new Date(s.event_date) >= new Date())
     .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))[0] || schedules[0];
@@ -38,8 +49,15 @@ export default function DashboardOverview({
   let nextFormattedTime = '';
   if (nextSchedule) {
     const d = new Date(nextSchedule.event_date);
-    nextFormattedDate = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' }).format(d);
-    nextFormattedTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(d);
+    nextFormattedDate = new Intl.DateTimeFormat('pt-BR', { 
+      weekday: 'short', 
+      day: '2-digit', 
+      month: 'short' 
+    }).format(d);
+    nextFormattedTime = new Intl.DateTimeFormat('pt-BR', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    }).format(d);
   }
 
   const isNextRehearsal = nextSchedule?.type === 'rehearsal';
@@ -62,61 +80,77 @@ export default function DashboardOverview({
       {/* Cartões de Métricas */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         
-        {/* Métrica 1: Músicas */}
+        {/* Métrica 1: Repertório */}
         <div 
           onClick={() => onNavigate('songs')}
-          className="bg-[#131614] border border-zinc-800/80 hover:border-[#a3e635]/60 p-5 rounded-3xl cursor-pointer transition-all group"
+          className="bg-[#131614] border border-zinc-800/80 hover:border-[#a3e635]/60 p-5 rounded-3xl cursor-pointer transition-all group flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400">Total no Repertório</span>
-            <div className="w-8 h-8 rounded-xl bg-zinc-900 group-hover:bg-[#a3e635] flex items-center justify-center text-zinc-400 group-hover:text-black transition-colors">
-              <Music2 className="w-4 h-4" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-400">Total no Repertório</span>
+              <div className="w-8 h-8 rounded-xl bg-zinc-900 group-hover:bg-[#a3e635] flex items-center justify-center text-zinc-400 group-hover:text-black transition-colors">
+                <Music2 className="w-4 h-4" />
+              </div>
             </div>
-          </div>
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-white">{songs.length}</span>
-            <span className="text-[11px] font-bold text-[#a3e635] group-hover:underline flex items-center gap-1">
-              Ver repertório <ArrowRight className="w-3 h-3" />
-            </span>
+            <div className="mt-4 flex items-baseline justify-between">
+              <span className="text-3xl font-black text-white">{songs.length}</span>
+              <span className="text-[11px] font-bold text-[#a3e635] group-hover:underline flex items-center gap-1">
+                Ver repertório <ArrowRight className="w-3 h-3" />
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Métrica 2: Cultos e Ensaios */}
+        {/* Métrica 2: Escalas e Ensaios */}
         <div 
           onClick={() => onNavigate('schedules')}
-          className="bg-[#131614] border border-zinc-800/80 hover:border-[#a3e635]/60 p-5 rounded-3xl cursor-pointer transition-all group"
+          className="bg-[#131614] border border-zinc-800/80 hover:border-[#a3e635]/60 p-5 rounded-3xl cursor-pointer transition-all group flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400">Escalas Cadastradas</span>
-            <div className="w-8 h-8 rounded-xl bg-zinc-900 group-hover:bg-[#a3e635] flex items-center justify-center text-zinc-400 group-hover:text-black transition-colors">
-              <Calendar className="w-4 h-4" />
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-400">Escalas Cadastradas</span>
+              <div className="w-8 h-8 rounded-xl bg-zinc-900 group-hover:bg-[#a3e635] flex items-center justify-center text-zinc-400 group-hover:text-black transition-colors">
+                <Calendar className="w-4 h-4" />
+              </div>
             </div>
-          </div>
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-white">{schedules.length}</span>
-            <span className="text-[11px] font-bold text-[#a3e635] group-hover:underline flex items-center gap-1">
-              Ver escalas <ArrowRight className="w-3 h-3" />
-            </span>
+            <div className="mt-4 flex items-baseline justify-between">
+              <span className="text-3xl font-black text-white">{schedules.length}</span>
+              <span className="text-[11px] font-bold text-[#a3e635] group-hover:underline flex items-center gap-1">
+                Ver escalas <ArrowRight className="w-3 h-3" />
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Métrica 3: Membros */}
-        <div className="bg-[#131614] border border-zinc-800/80 p-5 rounded-3xl">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-zinc-400">Voluntários na Equipe</span>
-            <div className="w-8 h-8 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400">
-              <Users className="w-4 h-4 text-[#a3e635]" />
+        {/* Métrica 3: Voluntários + Botão de Gerenciamento para Admin */}
+        <div className="bg-[#131614] border border-zinc-800/80 p-5 rounded-3xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-zinc-400">Voluntários na Equipe</span>
+              <div className="w-8 h-8 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-400">
+                <Users className="w-4 h-4 text-[#a3e635]" />
+              </div>
+            </div>
+            <div className="mt-4 flex items-baseline justify-between">
+              <span className="text-3xl font-black text-white">{profiles.length || 1}</span>
+              <span className="text-[11px] text-zinc-500">Membros ativos</span>
             </div>
           </div>
-          <div className="mt-4 flex items-baseline justify-between">
-            <span className="text-3xl font-black text-white">{profiles.length || 1}</span>
-            <span className="text-[11px] text-zinc-500">Membros ativos</span>
-          </div>
+
+          {isAdmin && onOpenTeamManagement && (
+            <button
+              onClick={onOpenTeamManagement}
+              className="mt-3 w-full py-1.5 rounded-xl bg-zinc-900 hover:bg-[#a3e635] text-zinc-300 hover:text-black font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer border border-zinc-800 hover:border-[#a3e635]"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              Gerenciar Acessos
+            </button>
+          )}
         </div>
 
       </div>
 
-      {/* Grade Principal: Próximo Evento e Aniversariantes */}
+      {/* Grade Principal: Próximo Culto/Ensaio e Aniversariantes do Mês */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* Próximo Culto / Ensaio */}

@@ -98,12 +98,19 @@ export const authService = {
     return data;
   },
 
-  async updateRoles(userId, roles) {
-    const { error } = await supabase
+  async updateUserRole(userId, newRole) {
+    const { data, error } = await supabase
       .from('profiles')
-      .update({ roles: roles })
-      .eq('id', userId);
-    if (error) console.error('Erro ao atualizar funções:', error);
+      .update({ role: newRole })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao atualizar cargo do usuário:', error);
+      throw error;
+    }
+    return data;
   },
 
   async getAllProfiles() {
