@@ -33,15 +33,14 @@ export default function NewScheduleModal({
 
   if (!isOpen) return null;
 
-  // Atalhos práticos de data
-  // Atalhos práticos de data (Quinta-feira, Sábado, Domingo)
+  // Atalhos práticos de data (Quinta = 4, Sábado = 6, Domingo = 0)
   const handleSetQuickDate = (targetDayOfWeek) => {
     const today = new Date();
     const result = new Date();
-    const currentDay = today.getDay(); // 0 = Domingo, 4 = Quinta, 6 = Sábado
+    const currentDay = today.getDay();
 
     let daysUntil = (targetDayOfWeek - currentDay + 7) % 7;
-    if (daysUntil === 0) daysUntil = 7; // Seleciona a da próxima semana se hoje já for esse dia
+    if (daysUntil === 0) daysUntil = 7;
 
     result.setDate(today.getDate() + daysUntil);
     setDate(result.toISOString().split('T')[0]);
@@ -172,7 +171,7 @@ export default function NewScheduleModal({
             />
           </div>
 
-          {/* Data e Atalhos */}
+          {/* Data e Atalhos Rápidos */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
@@ -181,22 +180,22 @@ export default function NewScheduleModal({
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => handleSetQuickDate('today')}
-                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors"
+                  onClick={() => handleSetQuickDate(4)}
+                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors cursor-pointer"
                 >
-                  Hoje
+                  Quinta
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQuickDate(6)}
-                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors"
+                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors cursor-pointer"
                 >
                   Sábado
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQuickDate(0)}
-                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors"
+                  className="px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] font-semibold text-zinc-400 hover:text-[#a3e635] hover:border-[#a3e635] transition-colors cursor-pointer"
                 >
                   Domingo
                 </button>
@@ -208,18 +207,17 @@ export default function NewScheduleModal({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635] color-scheme-dark"
+              className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-[#a3e635]"
               style={{ colorScheme: 'dark' }}
             />
           </div>
 
-          {/* Horário com Seletor Rápido */}
+          {/* Horário com Seleção Rápida */}
           <div className="space-y-2">
             <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-[#a3e635]" /> Horário
             </label>
 
-            {/* Chips de Horários Frequentes */}
             <div className="grid grid-cols-6 gap-1.5">
               {QUICK_TIMES.map((qt) => (
                 <button
@@ -258,7 +256,7 @@ export default function NewScheduleModal({
             />
           </div>
 
-          {/* Escalar Voluntários */}
+          {/* Escalação de Voluntários */}
           <div className="pt-3 border-t border-zinc-800/80 space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -338,7 +336,7 @@ export default function NewScheduleModal({
             )}
           </div>
 
-          {/* Rodapé */}
+          {/* Rodapé com Ações */}
           <div className="pt-3 border-t border-zinc-800/80 flex items-center justify-end gap-2">
             <button
               type="button"
