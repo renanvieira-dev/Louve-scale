@@ -7,12 +7,14 @@ import TeamChatWidget from './components/TeamChatWidget';
 import Logo from './components/Logo';
 import { supabase } from './services/supabase';
 import { schedulesService } from './services/schedulesService';
+import { generateGoogleCalendarUrl } from './utils/calendarUtils';
 import { 
   Calendar, 
   Plus, 
   Music2, 
   Users, 
   Trash2, 
+  Pencil,
   Video, 
   FileText, 
   Phone, 
@@ -26,6 +28,8 @@ import {
   LogIn, 
   Loader2, 
   Check,
+  Clock,
+  CalendarPlus,
   Search
 } from 'lucide-react';
 
@@ -54,6 +58,7 @@ export default function App() {
 
   // Estados de Modais
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState(null);
   const [isSongModalOpen, setIsSongModalOpen] = useState(false);
 
   // Estados da Tela de Login / Cadastro
@@ -66,7 +71,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  // 1. Verificar Sessão no Supabase
+  // 1. Sessão Supabase
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -123,7 +128,7 @@ export default function App() {
     };
   }, []);
 
-  // 2. Buscar Dados da Aplicação
+  // 2. Buscar Dados
   const fetchData = async () => {
     try {
       const { data: profilesData } = await supabase
@@ -138,6 +143,7 @@ export default function App() {
         .order('title', { ascending: true });
       if (songsData) setSongs(songsData);
 
+      // Buscar Escalas com Membros e Músicas vinculadas
       const schedulesData = await schedulesService.getSchedules();
       if (schedulesData) setSchedules(schedulesData);
     } catch (err) {
@@ -151,7 +157,6 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Alternar função na lista de múltiplas funções
   const toggleRoleSelection = (roleName) => {
     setAuthSelectedRoles((prev) => {
       if (prev.includes(roleName)) {
@@ -163,7 +168,6 @@ export default function App() {
     });
   };
 
-  // Login com Conta Google
   const handleGoogleLogin = async () => {
     try {
       setGoogleLoading(true);
@@ -183,7 +187,6 @@ export default function App() {
     }
   };
 
-  // Login / Cadastro com E-mail e Senha
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -222,7 +225,7 @@ export default function App() {
       }
     } catch (err) {
       console.error('Erro de autenticação:', err);
-      setAuthError(err.message || 'Falha ao autenticar. Verifique seus dados.');
+      setAuthError(err.message || 'Falha ao autenticar.');
     } finally {
       setAuthLoading(false);
     }
@@ -234,56 +237,41 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  // Ativar ou Desativar Admin para um Voluntário
-  const handleToggleAdmin = async (profileId, currentRole) => {
-    const isCurrentUserAdmin = currentUser?.profile?.role === 'admin';
-    if (!isCurrentUserAdmin) {
-      alert('Apenas administradores podem gerenciar permissões.');
-      return;
-    }
-
-    const newRole = currentRole === 'admin' ? 'member' : 'admin';
-    const actionName = newRole === 'admin' ? 'conceder acesso de Administrador' : 'remover permissão de Administrador';
-
-    if (!confirm(`Deseja realmente ${actionName} para este membro?`)) {
-      return;
-    }
-
+  // Salvar Escala (Criar ou Atualizar)
+  const handleSaveSchedule = async (schedulePayload, scheduleId) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', profileId);
-
-      if (error) throw error;
-
-      setProfiles((prev) =>
-        prev.map((p) => (p.id === profileId ? { ...p, role: newRole } : p))
-      );
-
-      // Se alterou a própria permissão, atualiza no currentUser
-      if (profileId === currentUser?.user?.id) {
-        setCurrentUser((prev) => ({
-          ...prev,
-          profile: { ...prev.profile, role: newRole }
-        }));
+      if (scheduleId) {
+        // Atualizar escala existente
+        await schedulesService.updateSchedule(scheduleId, schedulePayload);
+      } else {
+        // Criar nova escala
+        await schedulesService.createSchedule(schedulePayload);
       }
+      await fetchData();
+      setIsScheduleModalOpen(false);
+      setEditingSchedule(null);
     } catch (err) {
-      console.error('Erro ao atualizar permissão de admin:', err);
-      alert('Não foi possível alterar a permissão.');
+      console.error('Erro ao salvar escala:', err);
+      alert('Erro ao salvar a escala.');
     }
   };
 
-  // Salvar Escala
-  const handleSaveSchedule = async (schedulePayload) => {
+  // Excluir Escala
+  const handleDeleteSchedule = async (scheduleId) => {
+    if (!confirm('Deseja realmente excluir esta escala?')) return;
     try {
-      await schedulesService.createSchedule(schedulePayload);
-      await fetchData();
-      setIsScheduleModalOpen(false);
+      await schedulesService.deleteSchedule(scheduleId);
+      setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
     } catch (err) {
-      console.error('Erro ao criar escala:', err);
-      alert('Erro ao salvar escala.');
+      console.error('Erro ao excluir escala:', err);
+      alert('Erro ao excluir escala.');
     }
+  };
+
+  // Abrir Modal para Edição de Escala
+  const handleOpenEditSchedule = (schedule) => {
+    setEditingSchedule(schedule);
+    setIsScheduleModalOpen(true);
   };
 
   // Salvar Louvor
@@ -309,6 +297,41 @@ export default function App() {
     } catch (err) {
       console.error('Erro ao excluir música:', err);
       alert('Erro ao excluir louvor.');
+    }
+  };
+
+  // Alternar Permissão de Admin
+  const handleToggleAdmin = async (profileId, currentRole) => {
+    const isCurrentUserAdmin = currentUser?.profile?.role === 'admin';
+    if (!isCurrentUserAdmin) {
+      alert('Apenas administradores podem gerenciar permissões.');
+      return;
+    }
+
+    const newRole = currentRole === 'admin' ? 'member' : 'admin';
+    if (!confirm(`Deseja alterar a permissão de administrador deste voluntário?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', profileId);
+
+      if (error) throw error;
+
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === profileId ? { ...p, role: newRole } : p))
+      );
+
+      if (profileId === currentUser?.user?.id) {
+        setCurrentUser((prev) => ({
+          ...prev,
+          profile: { ...prev.profile, role: newRole }
+        }));
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar permissão de admin:', err);
+      alert('Não foi possível alterar a permissão.');
     }
   };
 
@@ -366,6 +389,8 @@ export default function App() {
     );
   });
 
+  const isCurrentUserAdmin = currentUser?.profile?.role === 'admin';
+
   if (loading) {
     return (
       <div className="min-h-screen bg-church-dark flex flex-col items-center justify-center gap-3 text-slate-400">
@@ -376,7 +401,7 @@ export default function App() {
   }
 
   // ==========================================
-  // TELA DE LOGIN / CADASTRO COM GOOGLE & MÚLTIPLAS FUNÇÕES
+  // TELA DE LOGIN / CADASTRO
   // ==========================================
   if (!currentUser) {
     return (
@@ -559,8 +584,6 @@ export default function App() {
     );
   }
 
-  const isCurrentUserAdmin = currentUser?.profile?.role === 'admin';
-
   // ==========================================
   // APLICAÇÃO LOGADA
   // ==========================================
@@ -592,7 +615,7 @@ export default function App() {
             />
           )}
 
-          {/* ABA 2: ESCALAS */}
+          {/* ABA 2: ESCALAS COM VISUALIZAÇÃO DE REPERTÓRIO, EDIÇÃO E EXCLUSÃO */}
           {activeTab === 'schedules' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex items-center justify-between">
@@ -606,7 +629,10 @@ export default function App() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsScheduleModalOpen(true)}
+                  onClick={() => {
+                    setEditingSchedule(null);
+                    setIsScheduleModalOpen(true);
+                  }}
                   className="px-4 py-2 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4" /> Nova Escala
@@ -619,29 +645,184 @@ export default function App() {
                   <p className="text-sm font-semibold">Nenhuma escala cadastrada no momento.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {schedules.map((item) => (
-                    <div key={item.id} className="bg-church-card border border-church-border p-5 rounded-3xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                          item.type === 'rehearsal' 
-                            ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' 
-                            : 'bg-church-blue/10 text-church-blue border border-church-blue/20'
-                        }`}>
-                          {item.type === 'rehearsal' ? 'Ensaio' : 'Culto Oficial'}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.event_date))}
-                        </span>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {schedules.map((item) => {
+                    const eventDate = new Date(item.event_date);
+                    const formattedDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(eventDate);
+                    const formattedTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(eventDate);
+                    
+                    const scheduleSongs = item.schedule_songs || [];
+                    const scheduleMembers = item.schedule_members || [];
+
+                    return (
+                      <div 
+                        key={item.id} 
+                        className="bg-church-card border border-church-border hover:border-church-blue/50 p-5 rounded-3xl space-y-4 transition-all flex flex-col justify-between shadow-sm"
+                      >
+                        <div className="space-y-3">
+                          
+                          {/* Cabeçalho do Card */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                  item.type === 'rehearsal' 
+                                    ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' 
+                                    : 'bg-church-blue/10 text-church-blue border border-church-blue/20'
+                                }`}>
+                                  {item.type === 'rehearsal' ? 'Ensaio' : 'Culto Oficial'}
+                                </span>
+                                <span className="text-xs text-slate-400 flex items-center gap-1 font-semibold">
+                                  <Clock className="w-3.5 h-3.5 text-church-blue" /> {formattedTime}
+                                </span>
+                              </div>
+                              <h3 className="text-base font-extrabold text-white leading-tight">{item.title}</h3>
+                              <span className="text-xs text-slate-400 capitalize block mt-0.5">{formattedDate}</span>
+                            </div>
+
+                            {/* Ações de Admin (Editar / Excluir) */}
+                            {isCurrentUserAdmin && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditSchedule(item)}
+                                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-church-blue text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                  title="Editar escala"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSchedule(item.id)}
+                                  className="p-1.5 rounded-xl bg-slate-900 hover:bg-church-red text-slate-400 hover:text-white transition-colors cursor-pointer"
+                                  title="Excluir escala"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {item.notes && (
+                            <p className="text-xs text-slate-400 bg-church-dark p-2.5 rounded-xl border border-church-border">
+                              {item.notes}
+                            </p>
+                          )}
+
+                          {/* REPERTÓRIO SELECIONADO PARA O CULTO */}
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-[11px] font-bold text-church-blue uppercase flex items-center gap-1.5">
+                              <Music2 className="w-3.5 h-3.5" /> Repertório ({scheduleSongs.length} músicas):
+                            </span>
+
+                            {scheduleSongs.length === 0 ? (
+                              <p className="text-xs text-slate-500 italic py-1">
+                                Nenhuma música selecionada ainda. Clique em editar para montar o repertório.
+                              </p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                                {scheduleSongs.map((ss, idx) => {
+                                  const songData = ss.song || songs.find(x => x.id === ss.song_id);
+                                  return (
+                                    <div 
+                                      key={idx} 
+                                      className="p-2 rounded-xl bg-church-dark border border-church-border flex items-center justify-between gap-2"
+                                    >
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-[10px] font-bold text-slate-500">{idx + 1}.</span>
+                                        <div className="min-w-0">
+                                          <h4 className="text-xs font-bold text-white truncate leading-tight">
+                                            {songData?.title || 'Louvor'}
+                                          </h4>
+                                          <span className="text-[10px] text-slate-400 truncate block">
+                                            {songData?.artist || ''}
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="flex items-center gap-2 flex-shrink-0">
+                                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-950/60 border border-church-blue/30 text-blue-400">
+                                          Tom {ss.custom_key || songData?.default_key || 'C'}
+                                        </span>
+                                        {songData?.chords_url && (
+                                          <a 
+                                            href={songData.chords_url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="p-1 rounded-lg bg-slate-900 hover:bg-church-blue text-slate-400 hover:text-white"
+                                            title="Ver Cifra"
+                                          >
+                                            <FileText className="w-3 h-3" />
+                                          </a>
+                                        )}
+                                        {songData?.youtube_url && (
+                                          <a 
+                                            href={songData.youtube_url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="p-1 rounded-lg bg-slate-900 hover:bg-church-red text-slate-400 hover:text-white"
+                                            title="Ver Vídeo"
+                                          >
+                                            <Video className="w-3 h-3" />
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* EQUIPE ESCALADA */}
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-[11px] font-bold text-slate-300 uppercase flex items-center gap-1.5">
+                              <Users className="w-3.5 h-3.5 text-church-blue" /> Voluntários ({scheduleMembers.length}):
+                            </span>
+
+                            {scheduleMembers.length === 0 ? (
+                              <p className="text-xs text-slate-500 italic py-1">Nenhum voluntário escalado.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {scheduleMembers.map((sm, idx) => {
+                                  const memberName = sm.profile?.full_name || profiles.find(p => p.id === sm.profile_id)?.full_name || 'Voluntário';
+                                  return (
+                                    <span 
+                                      key={idx} 
+                                      className="px-2.5 py-1 rounded-xl bg-church-dark border border-church-border text-[11px] font-semibold text-slate-200 flex items-center gap-1.5"
+                                    >
+                                      <span>{memberName}</span>
+                                      <span className="text-[9px] text-church-blue font-bold">({sm.role})</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                        </div>
+
+                        {/* Sincronização Google Agenda */}
+                        <div className="pt-3 border-t border-church-border">
+                          <a
+                            href={generateGoogleCalendarUrl({
+                              title: item.title,
+                              eventDate: item.event_date,
+                              notes: item.notes,
+                              songs: item.schedule_songs || []
+                            })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full py-2 rounded-xl bg-slate-900 hover:bg-church-blue text-slate-300 hover:text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 border border-church-border hover:border-church-blue"
+                          >
+                            <CalendarPlus className="w-3.5 h-3.5" />
+                            Adicionar ao Google Agenda (Alerta 2h)
+                          </a>
+                        </div>
+
                       </div>
-                      <h3 className="text-base font-bold text-white">{item.title}</h3>
-                      {item.notes && <p className="text-xs text-slate-400">{item.notes}</p>}
-                      <div className="pt-2 border-t border-church-border flex items-center justify-between text-xs text-slate-400">
-                        <span>Equipe: {item.schedule_members?.length || 0}</span>
-                        <span>Músicas: {item.schedule_songs?.length || 0}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -672,7 +853,6 @@ export default function App() {
                 <div className="bg-church-card border border-church-border rounded-3xl p-12 text-center text-slate-400">
                   <Music2 className="w-10 h-10 mx-auto text-slate-600 mb-2" />
                   <p className="text-sm font-semibold">Nenhuma música encontrada.</p>
-                  <p className="text-xs text-slate-500 mt-1">Clique em "Nova Música" para adicionar o repertório do ministério.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -749,7 +929,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 4: VOLUNTÁRIOS COMPLETA COM GESTÃO DE ADMIN */}
+          {/* ABA 4: VOLUNTÁRIOS */}
           {activeTab === 'members' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -761,11 +941,9 @@ export default function App() {
                     Membros cadastrados no ministério de louvor, funções e permissões.
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-300 bg-church-card border border-church-border px-3 py-1.5 rounded-xl">
-                    {profiles.length} voluntários
-                  </span>
-                </div>
+                <span className="text-xs font-bold text-slate-300 bg-church-card border border-church-border px-3 py-1.5 rounded-xl">
+                  {profiles.length} voluntários
+                </span>
               </div>
 
               {filteredMembers.length === 0 ? (
@@ -791,7 +969,6 @@ export default function App() {
                       >
                         <div>
                           <div className="flex items-start gap-3">
-                            {/* Avatar */}
                             <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-700 overflow-hidden flex items-center justify-center flex-shrink-0">
                               {member.avatar_url ? (
                                 <img 
@@ -806,7 +983,6 @@ export default function App() {
                               )}
                             </div>
 
-                            {/* Informações */}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <h3 className="text-sm font-extrabold text-white truncate leading-tight">
@@ -824,7 +1000,6 @@ export default function App() {
                                 )}
                               </div>
 
-                              {/* Badges de Instrumentos / Funções */}
                               <div className="flex flex-wrap gap-1 mt-1.5">
                                 {memberRoles.map((r, idx) => (
                                   <span 
@@ -838,7 +1013,6 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Metadados: Aniversário e WhatsApp */}
                           <div className="pt-3 mt-3 border-t border-church-border flex items-center justify-between text-xs text-slate-400">
                             {member.birth_date ? (
                               <span className="flex items-center gap-1 text-[11px]">
@@ -863,7 +1037,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* BOTÃO PARA ATIVAR / DESATIVAR ADMIN (Disponível para administradores) */}
+                        {/* Botão de Admin */}
                         {isCurrentUserAdmin && (
                           <div className="pt-3 border-t border-church-border flex items-center justify-between">
                             <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
@@ -873,7 +1047,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => handleToggleAdmin(member.id, member.role)}
-                              disabled={isMe} // Evita que você remova o seu próprio admin por engano
+                              disabled={isMe}
                               className={`px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                                 isMe 
                                   ? 'opacity-40 cursor-not-allowed bg-slate-900 text-slate-500 border border-slate-800' 
@@ -881,7 +1055,6 @@ export default function App() {
                                     ? 'bg-church-red/20 hover:bg-church-red text-church-red hover:text-white border border-church-red/40'
                                     : 'bg-church-blue/20 hover:bg-church-blue text-church-blue hover:text-white border border-church-blue/40'
                               }`}
-                              title={isMe ? 'Você não pode revogar o seu próprio acesso de admin' : 'Alterar cargo de administrador'}
                             >
                               {isAdmin ? (
                                 <>
@@ -906,11 +1079,16 @@ export default function App() {
 
         </main>
 
-        {/* Modal de Escala */}
+        {/* Modal de Escala com Suporte a Edição e Músicas */}
         <NewScheduleModal
           isOpen={isScheduleModalOpen}
-          onClose={() => setIsScheduleModalOpen(false)}
+          onClose={() => {
+            setIsScheduleModalOpen(false);
+            setEditingSchedule(null);
+          }}
           profiles={profiles}
+          songs={songs}
+          scheduleToEdit={editingSchedule}
           onSave={handleSaveSchedule}
         />
 

@@ -1,5 +1,18 @@
-import React, { useState } from 'react';
-import { X, Calendar, Clock, Users, Plus, Check, Trash2, CalendarDays } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  X, 
+  Calendar, 
+  Clock, 
+  Users, 
+  Plus, 
+  Check, 
+  Trash2, 
+  CalendarDays, 
+  Music2, 
+  FileText, 
+  Video,
+  ListMusic
+} from 'lucide-react';
 
 const SCHEDULE_ROLES = [
   'Ministro(a) de Louvor',
@@ -13,12 +26,19 @@ const SCHEDULE_ROLES = [
   'Técnico de Som'
 ];
 
+const COMMON_KEYS = [
+  'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
+  'Cm', 'C#m', 'Dm', 'D#m', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'
+];
+
 const QUICK_TIMES = ['09:00', '10:00', '18:00', '19:00', '19:30', '20:00'];
 
 export default function NewScheduleModal({ 
   isOpen = false, 
   onClose, 
   profiles = [], 
+  songs = [],
+  scheduleToEdit = null,
   onSave 
 }) {
   const [title, setTitle] = useState('Culto de Celebração');
@@ -27,9 +47,68 @@ export default function NewScheduleModal({
   const [time, setTime] = useState('19:00');
   const [notes, setNotes] = useState('');
 
+  // Voluntários Escalados
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [tempProfileId, setTempProfileId] = useState('');
   const [tempRole, setTempRole] = useState('Backing Vocal');
+
+  // Músicas Selecionadas para a Escala
+  const [selectedSongs, setSelectedSongs] = useState([]);
+  const [tempSongId, setTempSongId] = useState('');
+  const [tempSongKey, setTempSongKey] = useState('');
+
+  // Se houver scheduleToEdit, preenche os campos automaticamente
+  useEffect(() => {
+    if (scheduleToEdit) {
+      setTitle(scheduleToEdit.title || 'Culto de Celebração');
+      setType(scheduleToEdit.type || 'service');
+      setNotes(scheduleToEdit.notes || '');
+
+      if (scheduleToEdit.event_date) {
+        const d = new Date(scheduleToEdit.event_date);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        setDate(`${yyyy}-${mm}-${dd}`);
+
+        const hh = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        setTime(`${hh}:${min}`);
+      }
+
+      // Membros
+      if (scheduleToEdit.schedule_members) {
+        setSelectedMembers(
+          scheduleToEdit.schedule_members.map((m) => ({
+            profile_id: m.profile_id,
+            full_name: m.profile?.full_name || profiles.find(p => p.id === m.profile_id)?.full_name || 'Voluntário',
+            role_in_schedule: m.role || 'Voluntário'
+          }))
+        );
+      }
+
+      // Músicas
+      if (scheduleToEdit.schedule_songs) {
+        setSelectedSongs(
+          scheduleToEdit.schedule_songs.map((s) => ({
+            song_id: s.song_id,
+            title: s.song?.title || songs.find(x => x.id === s.song_id)?.title || 'Louvor',
+            artist: s.song?.artist || songs.find(x => x.id === s.song_id)?.artist || '',
+            custom_key: s.custom_key || s.song?.default_key || 'C'
+          }))
+        );
+      }
+    } else {
+      // Criação limpa
+      setTitle('Culto de Celebração');
+      setType('service');
+      setDate('');
+      setTime('19:00');
+      setNotes('');
+      setSelectedMembers([]);
+      setSelectedSongs([]);
+    }
+  }, [scheduleToEdit, isOpen, profiles, songs]);
 
   if (!isOpen) return null;
 
@@ -45,6 +124,7 @@ export default function NewScheduleModal({
     setDate(result.toISOString().split('T')[0]);
   };
 
+  // Adicionar Voluntário
   const handleAddMember = () => {
     if (!tempProfileId) {
       alert('Selecione um voluntário.');
@@ -66,8 +146,36 @@ export default function NewScheduleModal({
     setTempProfileId('');
   };
 
-  const handleRemoveMember = (indexToRemove) => {
-    setSelectedMembers((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  const handleRemoveMember = (idx) => {
+    setSelectedMembers((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  // Adicionar Música ao Repertório da Escala
+  const handleAddSong = () => {
+    if (!tempSongId) {
+      alert('Selecione uma música do repertório.');
+      return;
+    }
+
+    const song = songs.find((s) => s.id === tempSongId);
+    if (!song) return;
+
+    setSelectedSongs((prev) => [
+      ...prev,
+      {
+        song_id: song.id,
+        title: song.title,
+        artist: song.artist,
+        custom_key: tempSongKey || song.default_key || 'C'
+      }
+    ]);
+
+    setTempSongId('');
+    setTempSongKey('');
+  };
+
+  const handleRemoveSong = (idx) => {
+    setSelectedSongs((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleSubmit = (e) => {
@@ -80,7 +188,7 @@ export default function NewScheduleModal({
 
     const eventDateTime = new Date(`${date}T${time || '00:00'}:00`).toISOString();
 
-    onSave({
+    const payload = {
       title: title.trim(),
       type,
       event_date: eventDateTime,
@@ -89,21 +197,21 @@ export default function NewScheduleModal({
         profile_id: m.profile_id,
         role: m.role_in_schedule,
         status: 'pending'
+      })),
+      songs: selectedSongs.map((s, index) => ({
+        song_id: s.song_id,
+        custom_key: s.custom_key,
+        order_index: index + 1
       }))
-    });
+    };
 
-    setTitle('Culto de Celebração');
-    setType('service');
-    setDate('');
-    setTime('19:00');
-    setNotes('');
-    setSelectedMembers([]);
+    onSave(payload, scheduleToEdit?.id || null);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-church-card border border-church-border rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
+      <div className="bg-church-card border border-church-border rounded-3xl w-full max-w-xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         
         {/* Cabeçalho */}
         <div className="px-5 py-4 border-b border-church-border flex items-center justify-between flex-shrink-0">
@@ -111,7 +219,9 @@ export default function NewScheduleModal({
             <div className="w-8 h-8 rounded-2xl bg-church-blue text-white flex items-center justify-center font-bold text-xs shadow-md shadow-blue-600/30 flex-shrink-0">
               <Calendar className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-white text-base truncate">Nova Escala / Agendamento</h3>
+            <h3 className="font-bold text-white text-base truncate">
+              {scheduleToEdit ? 'Editar Escala' : 'Nova Escala / Agendamento'}
+            </h3>
           </div>
           <button
             type="button"
@@ -122,8 +232,8 @@ export default function NewScheduleModal({
           </button>
         </div>
 
-        {/* Formulário */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto overflow-x-hidden space-y-4 flex-1">
+        {/* Formulário com Scroll */}
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
           {/* Tipo de Evento */}
           <div className="grid grid-cols-2 gap-2 bg-church-dark p-1.5 rounded-2xl border border-church-border">
@@ -170,7 +280,7 @@ export default function NewScheduleModal({
             />
           </div>
 
-          {/* Data e Atalhos Rápidos */}
+          {/* Data */}
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center justify-between gap-1.5">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
@@ -206,8 +316,8 @@ export default function NewScheduleModal({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2.5 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue appearance-none"
-              style={{ colorScheme: 'dark', WebkitAppearance: 'none' }}
+              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2.5 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+              style={{ colorScheme: 'dark' }}
             />
           </div>
 
@@ -238,8 +348,8 @@ export default function NewScheduleModal({
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-church-blue appearance-none"
-              style={{ colorScheme: 'dark', WebkitAppearance: 'none' }}
+              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-church-blue"
+              style={{ colorScheme: 'dark' }}
             />
           </div>
 
@@ -250,18 +360,103 @@ export default function NewScheduleModal({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ex: Passagem de som às 18h30. Vestimenta: tons escuros."
+              placeholder="Ex: Passagem de som às 17h40. Vestimenta: tons escuros."
               className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
             />
           </div>
 
-          {/* Escalação de Voluntários */}
+          {/* REPERTÓRIO DE LOUVORES DA ESCALA */}
           <div className="pt-3 border-t border-church-border space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-church-blue" /> Escalar Voluntários
+                <Music2 className="w-3.5 h-3.5 text-church-blue" /> Músicas da Escala
               </label>
-              <span className="text-[11px] text-slate-400 font-medium">
+              <span className="text-[11px] text-slate-400 font-semibold">
+                {selectedSongs.length} música(s) no repertório
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 bg-church-dark p-3 rounded-2xl border border-church-border">
+              <select
+                value={tempSongId}
+                onChange={(e) => {
+                  const sId = e.target.value;
+                  setTempSongId(sId);
+                  const found = songs.find(x => x.id === sId);
+                  if (found) setTempSongKey(found.default_key || 'C');
+                }}
+                className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+              >
+                <option value="">Selecione a música do repertório...</option>
+                {songs.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.title} - {s.artist} (Tom {s.default_key || 'C'})
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex gap-2">
+                <select
+                  value={tempSongKey}
+                  onChange={(e) => setTempSongKey(e.target.value)}
+                  className="w-28 box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue font-bold"
+                >
+                  <option value="">Tom...</option>
+                  {COMMON_KEYS.map((k) => (
+                    <option key={k} value={k}>
+                      Tom {k}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleAddSong}
+                  className="flex-1 py-2 px-3 bg-church-blue hover:bg-church-blue-hover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm shadow-blue-600/20"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Adicionar Louvor
+                </button>
+              </div>
+            </div>
+
+            {selectedSongs.length > 0 && (
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                {selectedSongs.map((song, idx) => (
+                  <div
+                    key={idx}
+                    className="p-2.5 rounded-xl bg-church-dark border border-church-border flex items-center justify-between gap-2"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-[10px] font-bold text-slate-500 w-4">{idx + 1}.</span>
+                      <div className="min-w-0 truncate">
+                        <span className="text-xs font-bold text-white block truncate">{song.title}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{song.artist}</span>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md font-black bg-blue-950/60 border border-church-blue/30 text-blue-400 flex-shrink-0">
+                        {song.custom_key}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSong(idx)}
+                      className="text-slate-500 hover:text-church-red p-1 rounded-lg transition-colors cursor-pointer flex-shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* VOLUNTÁRIOS ESCALADOS */}
+          <div className="pt-3 border-t border-church-border space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-church-blue" /> Voluntários Escalados
+              </label>
+              <span className="text-[11px] text-slate-400 font-semibold">
                 {selectedMembers.length} escalado(s)
               </span>
             </div>
@@ -345,7 +540,7 @@ export default function NewScheduleModal({
               className="px-5 py-2.5 bg-church-blue hover:bg-church-blue-hover text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-blue-600/30 cursor-pointer flex items-center gap-1.5"
             >
               <Check className="w-4 h-4 stroke-[2.5]" />
-              Salvar Escala
+              {scheduleToEdit ? 'Atualizar Escala' : 'Salvar Escala'}
             </button>
           </div>
 
