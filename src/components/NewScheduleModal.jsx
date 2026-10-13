@@ -16,7 +16,7 @@ const SCHEDULE_ROLES = [
 const QUICK_TIMES = ['09:00', '10:00', '18:00', '19:00', '19:30', '20:00'];
 
 export default function NewScheduleModal({ 
-  isOpen, 
+  isOpen = false, 
   onClose, 
   profiles = [], 
   onSave 
@@ -166,11 +166,11 @@ export default function NewScheduleModal({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex: Culto de Celebração, Ensaio Geral..."
-              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
             />
           </div>
 
-          {/* Data e Atalhos */}
+          {/* Data e Atalhos Rápidos */}
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center justify-between gap-1.5">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
@@ -206,7 +206,7 @@ export default function NewScheduleModal({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-church-blue appearance-none"
+              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2.5 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue appearance-none"
               style={{ colorScheme: 'dark', WebkitAppearance: 'none' }}
             />
           </div>
@@ -238,7 +238,7 @@ export default function NewScheduleModal({
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-church-blue appearance-none"
+              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-church-blue appearance-none"
               style={{ colorScheme: 'dark', WebkitAppearance: 'none' }}
             />
           </div>
@@ -251,7 +251,7 @@ export default function NewScheduleModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ex: Passagem de som às 18h30. Vestimenta: tons escuros."
-              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
             />
           </div>
 
@@ -270,7 +270,7 @@ export default function NewScheduleModal({
               <select
                 value={tempProfileId}
                 onChange={(e) => setTempProfileId(e.target.value)}
-                className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+                className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
               >
                 <option value="">Selecione o voluntário...</option>
                 {profiles.map((p) => (
@@ -284,7 +284,7 @@ export default function NewScheduleModal({
                 <select
                   value={tempRole}
                   onChange={(e) => setTempRole(e.target.value)}
-                  className="flex-1 min-w-0 box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+                  className="flex-1 min-w-0 box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
                 >
                   {SCHEDULE_ROLES.map((r) => (
                     <option key={r} value={r}>

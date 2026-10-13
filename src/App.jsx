@@ -1,260 +1,156 @@
 import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import DashboardOverview from './components/DashboardOverview';
-import SongsView from './components/SongsView';
-import SchedulesView from './components/SchedulesView';
-import MembersView from './components/MembersView';
-import AuthModal from './components/AuthModal';
-import { songsService } from './services/songsService';
-import { schedulesService } from './services/schedulesService';
-import { authService } from './services/authService';
+import NewScheduleModal from './components/NewScheduleModal';
 import TeamChatWidget from './components/TeamChatWidget';
+import { supabase } from './services/supabase';
+import { schedulesService } from './services/schedulesService';
+import { Calendar, Plus, Music2, Users, Search } from 'lucide-react';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
-  
-  // Abas: 'dashboard', 'schedules', 'songs', 'members'
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
-  const [songs, setSongs] = useState([]);
+
+  // Dados principais
   const [schedules, setSchedules] = useState([]);
+  const [songs, setSongs] = useState([]);
   const [profiles, setProfiles] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // 1. Escuta contínua de sessão e sincronização
+  // Estados de controle de Modais (declarados explicitamente para evitar ReferenceError)
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+
+  // Verificar sessão do usuário
   useEffect(() => {
-    let isMounted = true;
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
 
-    const { data: { subscription } } = authService.onAuthStateChange(async (userSession) => {
-      if (!isMounted) return;
-
-      if (userSession?.user) {
-        const pendingRolesStr = localStorage.getItem('pending_roles');
-        if (pendingRolesStr) {
-          try {
-            const parsedRoles = JSON.parse(pendingRolesStr);
-            await authService.updateRoles(userSession.user.id, parsedRoles);
-            if (userSession.profile) {
-              userSession.profile.roles = parsedRoles;
-            }
-          } catch (e) {
-            console.error('Erro ao sincronizar funções pendentes:', e);
-          }
-          localStorage.removeItem('pending_roles');
-        }
+        setCurrentUser({ user: session.user, profile: profile || {} });
       }
+      setLoading(false);
+    };
 
-      setCurrentUser(userSession);
-      setIsAuthChecking(false);
+    checkSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        setCurrentUser({ user: session.user, profile: profile || {} });
+      } else {
+        setCurrentUser(null);
+      }
     });
 
     return () => {
-      isMounted = false;
-      subscription?.unsubscribe();
+      authListener.subscription.unsubscribe();
     };
   }, []);
 
-  // 2. Carregar dados das coleções
-  const loadData = async () => {
+  // Carregar dados da aplicação
+  const fetchData = async () => {
     try {
-      setIsLoading(true);
-      const [songsData, schedulesData, profilesData] = await Promise.all([
-        songsService.getSongs(),
-        schedulesService.getSchedules(),
-        authService.getAllProfiles()
-      ]);
-      setSongs(songsData || []);
-      setSchedules(schedulesData || []);
-      setProfiles(profilesData || []);
+      // 1. Buscar perfis
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('full_name', { ascending: true });
+      if (profilesData) setProfiles(profilesData);
+
+      // 2. Buscar músicas
+      const { data: songsData } = await supabase
+        .from('songs')
+        .select('*')
+        .order('title', { ascending: true });
+      if (songsData) setSongs(songsData);
+
+      // 3. Buscar escalas
+      const schedulesData = await schedulesService.getSchedules();
+      if (schedulesData) setSchedules(schedulesData);
     } catch (err) {
-      console.error('Erro ao carregar dados:', err);
-    } finally {
-      setIsLoading(false);
+      console.error('Erro ao buscar dados:', err);
     }
   };
 
   useEffect(() => {
     if (currentUser) {
-      loadData();
+      fetchData();
     }
   }, [currentUser]);
 
-  const handleLogout = async () => {
-    await authService.signOut();
-    setCurrentUser(null);
-  };
-
-  // Upload de Foto de Perfil
-  const handleAvatarUpload = async (file) => {
-    if (!currentUser?.user?.id) return;
-    const newUrl = await authService.uploadAvatar(currentUser.user.id, file);
-
-    setCurrentUser((prev) => ({
-      ...prev,
-      profile: {
-        ...(prev?.profile || {}),
-        avatar_url: newUrl
-      }
-    }));
-
-    setProfiles((prev) =>
-      prev.map((p) => (p.id === currentUser.user.id ? { ...p, avatar_url: newUrl } : p))
-    );
-  };
-
-  // Músicas: Cadastrar, Editar e Excluir
-  const handleAddSong = async (newSongData) => {
-    try {
-      const savedSong = await songsService.addSong(newSongData);
-      setSongs((prev) => [savedSong, ...prev]);
-    } catch {
-      alert('Erro ao guardar música.');
-    }
-  };
-
-  const handleUpdateSong = async (songId, updatedData) => {
-    try {
-      const updated = await songsService.updateSong(songId, updatedData);
-      setSongs((prev) => prev.map((s) => (s.id === songId ? updated : s)));
-    } catch {
-      alert('Erro ao atualizar música.');
-    }
-  };
-
-  const handleDeleteSong = async (songId) => {
-    try {
-      await songsService.deleteSong(songId);
-      setSongs((prev) => prev.filter((s) => s.id !== songId));
-      setSchedules((prev) =>
-        prev.map((sched) => ({
-          ...sched,
-          schedule_songs: (sched.schedule_songs || []).filter(
-            (item) => item.song_id !== songId && item.songs?.id !== songId
-          ),
-        }))
-      );
-    } catch {
-      alert('Erro ao excluir música.');
-    }
-  };
-
-  // Escalas: Criar e Excluir
-  const handleAddSchedule = async (schedulePayload) => {
+  // Salvar nova escala
+  const handleSaveSchedule = async (schedulePayload) => {
     try {
       await schedulesService.createSchedule(schedulePayload);
-      const updated = await schedulesService.getSchedules();
-      setSchedules(updated);
+      await fetchData();
+      setIsScheduleModalOpen(false);
     } catch (err) {
-      console.error('Erro detalhado:', err);
-      alert(err?.message || 'Erro ao criar escala.');
+      console.error('Erro ao criar escala:', err);
+      alert('Erro ao salvar a escala. Verifique as informações.');
     }
   };
 
-  const handleDeleteSchedule = async (scheduleId) => {
+  // Upload de avatar
+  const handleAvatarUpload = async (file) => {
+    if (!currentUser?.user?.id) return;
     try {
-      await schedulesService.deleteSchedule(scheduleId);
-      setSchedules((prev) => prev.filter((s) => s.id !== scheduleId));
-    } catch {
-      alert('Erro ao eliminar escala.');
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${currentUser.user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', currentUser.user.id);
+
+      setCurrentUser((prev) => ({
+        ...prev,
+        profile: { ...prev.profile, avatar_url: publicUrl }
+      }));
+    } catch (err) {
+      console.error('Erro no upload de avatar:', err);
+      alert('Não foi possível enviar a foto de perfil.');
     }
   };
 
-  const handleStatusChange = async (memberId, status) => {
-    try {
-      await schedulesService.updateMemberStatus(memberId, status);
-      setSchedules((prev) =>
-        prev.map((sched) => ({
-          ...sched,
-          schedule_members: (sched.schedule_members || []).map((m) =>
-            m.id === memberId ? { ...m, status } : m
-          ),
-        }))
-      );
-    } catch {
-      alert('Erro ao atualizar presença.');
-    }
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
-  const handleAddSongToSchedule = async (scheduleId, payload, orderIndex) => {
-    try {
-      let songIdToLink = payload.songId;
-      if (payload.type === 'new') {
-        const savedNewSong = await songsService.addSong(payload.newSong);
-        songIdToLink = savedNewSong.id;
-        setSongs((prev) => [savedNewSong, ...prev]);
-      }
-
-      const newEntry = await schedulesService.addSongToSchedule(
-        scheduleId,
-        songIdToLink,
-        payload.songKey,
-        orderIndex
-      );
-
-      setSchedules((prev) =>
-        prev.map((sched) => {
-          if (sched.id === scheduleId) {
-            return {
-              ...sched,
-              schedule_songs: [...(sched.schedule_songs || []), newEntry],
-            };
-          }
-          return sched;
-        })
-      );
-    } catch {
-      alert('Erro ao vincular música à escala.');
-    }
-  };
-
-  const handleRemoveSongFromSchedule = async (scheduleId, scheduleSongId) => {
-    try {
-      await schedulesService.removeSongFromSchedule(scheduleSongId);
-      setSchedules((prev) =>
-        prev.map((sched) => {
-          if (sched.id === scheduleId) {
-            return {
-              ...sched,
-              schedule_songs: (sched.schedule_songs || []).filter(
-                (s) => s.id !== scheduleSongId
-              ),
-            };
-          }
-          return sched;
-        })
-      );
-    } catch {
-      alert('Erro ao remover música da escala.');
-    }
-  };
-
-  // Voluntários: Atualização de papéis
-  const handleProfileUpdated = (userId, updatedFields) => {
-    setProfiles((prev) =>
-      prev.map((p) => (p.id === userId ? { ...p, ...updatedFields } : p))
-    );
-  };
-
-  if (isAuthChecking) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#0b0d0c] flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#a3e635] border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen bg-church-dark flex items-center justify-center text-slate-400">
+        Carregando LouveScale...
       </div>
     );
   }
 
-  if (!currentUser) {
-    return <AuthModal onLoginSuccess={(user) => setCurrentUser(user)} />;
-  }
-
-  const isAdmin = currentUser?.profile?.role === 'admin';
-
   return (
-    <div className="min-h-screen bg-[#0b0d0c] text-zinc-100 flex flex-col items-center antialiased selection:bg-[#a3e635] selection:text-black">
+    <div className="min-h-screen bg-church-dark text-church-silver flex flex-col items-center antialiased selection:bg-church-blue selection:text-white">
       <div className="w-full max-w-7xl min-h-screen flex flex-col px-4 sm:px-8 lg:px-12 py-4">
         
-        <Header 
+        {/* Header Oficial LouveScale */}
+        <Header
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           searchQuery={searchQuery}
@@ -264,79 +160,101 @@ export default function App() {
           onAvatarUpload={handleAvatarUpload}
         />
 
+        {/* Conteúdo Principal */}
         <main className="flex-1 mt-6">
           {activeTab === 'dashboard' && (
-            <DashboardOverview 
+            <DashboardOverview
               songs={songs}
               schedules={schedules}
               profiles={profiles}
-              onNavigate={setActiveTab}
+              onNavigate={(tab) => setActiveTab(tab)}
             />
           )}
 
           {activeTab === 'schedules' && (
-            isLoading ? (
-              <div className="p-16 text-center bg-[#131614] border border-zinc-800/80 rounded-3xl flex flex-col items-center justify-center gap-3">
-                <div className="w-8 h-8 border-2 border-[#a3e635] border-t-transparent rounded-full animate-spin"></div>
-                <p className="text-zinc-400 text-sm font-medium">A carregar escalas...</p>
+            <div className="space-y-6 animate-in fade-in">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+                    Escalas e Ensaios <Calendar className="w-5 h-5 text-church-blue" />
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Acompanhe a formação da equipe, repertório e sincronize com a sua agenda.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsScheduleModalOpen(true)}
+                  className="px-4 py-2 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/30 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Nova Escala
+                </button>
               </div>
-            ) : (
-              <SchedulesView
-                schedules={schedules}
-                songs={songs}
-                profiles={profiles}
-                onAddSchedule={handleAddSchedule}
-                onDeleteSchedule={handleDeleteSchedule}
-                onStatusChange={handleStatusChange}
-                onAddSongToSchedule={handleAddSongToSchedule}
-                onRemoveSongFromSchedule={handleRemoveSongFromSchedule}
-                isAdmin={isAdmin}
-              />
-            )
+
+              {schedules.length === 0 ? (
+                <div className="bg-church-card border border-church-border rounded-3xl p-12 text-center text-slate-400">
+                  <Calendar className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+                  <p className="text-sm font-semibold">Nenhuma escala cadastrada no momento.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {schedules.map((item) => (
+                    <div key={item.id} className="bg-church-card border border-church-border p-5 rounded-3xl space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                          item.type === 'rehearsal' 
+                            ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' 
+                            : 'bg-church-blue/10 text-church-blue border border-church-blue/20'
+                        }`}>
+                          {item.type === 'rehearsal' ? 'Ensaio' : 'Culto Oficial'}
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(item.event_date))}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-bold text-white">{item.title}</h3>
+                      {item.notes && <p className="text-xs text-slate-400">{item.notes}</p>}
+                      <div className="pt-2 border-t border-church-border flex items-center justify-between text-xs text-slate-400">
+                        <span>Equipe: {item.schedule_members?.length || 0}</span>
+                        <span>Músicas: {item.schedule_songs?.length || 0}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {activeTab === 'songs' && (
-            <SongsView 
-              songs={songs} 
-              onAddSong={handleAddSong}
-              onUpdateSong={handleUpdateSong}
-              onDeleteSong={handleDeleteSong}
-              searchQuery={searchQuery}
-              isAdmin={isAdmin}
-            />
+            <div className="bg-church-card border border-church-border rounded-3xl p-8 text-center text-slate-400">
+              <Music2 className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+              <p className="text-sm font-semibold">Repertório de Louvor ({songs.length} cadastradas)</p>
+            </div>
           )}
 
           {activeTab === 'members' && (
-            <MembersView
-              profiles={profiles}
-              currentUserId={currentUser?.user?.id}
-              isAdmin={isAdmin}
-              onProfileUpdated={handleProfileUpdated}
-            />
+            <div className="bg-church-card border border-church-border rounded-3xl p-8 text-center text-slate-400">
+              <Users className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+              <p className="text-sm font-semibold">Equipe e Voluntários ({profiles.length} voluntários)</p>
+            </div>
           )}
         </main>
 
+        {/* Modal de Nova Escala */}
+        <NewScheduleModal
+          isOpen={isScheduleModalOpen}
+          onClose={() => setIsScheduleModalOpen(false)}
+          profiles={profiles}
+          onSave={handleSaveSchedule}
+        />
+
+        {/* Chat Flutuante da Equipe (Auto-contido) */}
+        <TeamChatWidget
+          currentUser={currentUser}
+          songsPool={songs}
+        />
+
       </div>
-
-      {/* Botão Flutuante (FAB) */}
-      {!isOpen && (
-        <button
-          onClick={() => {
-            requestNotifyPermission();
-            setIsOpen(true);
-          }}
-          className="fixed bottom-5 right-5 z-40 bg-gradient-to-tr from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl shadow-blue-900/40 border-2 border-slate-900 transition-transform active:scale-95 cursor-pointer group"
-          title="Abrir Chat da Equipe"
-        >
-          <MessageCircle className="w-6 h-6 stroke-[2.5]" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-church-red text-white font-extrabold text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-church-dark animate-bounce">
-              {unreadCount}
-            </span>
-          )}
-        </button>
-      )}
-
     </div>
   );
 }

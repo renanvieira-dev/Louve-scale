@@ -55,7 +55,7 @@ export default function Header({
     <header className="w-full flex flex-col gap-3 sm:gap-4">
       <div className="flex items-center justify-between border-b border-church-border pb-3 sm:pb-4 gap-4">
         
-        {/* Logótipo e Marca LouveScale */}
+        {/* Identidade LouveScale */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <Logo size={36} className="rounded-2xl w-8 h-8 sm:w-9 sm:h-9" />
           <span className="font-extrabold text-white text-base sm:text-lg tracking-tight">
@@ -63,7 +63,7 @@ export default function Header({
           </span>
         </div>
 
-        {/* Abas Desktop */}
+        {/* Abas no Desktop */}
         <nav className="hidden sm:flex items-center gap-1 bg-church-card p-1.5 rounded-2xl border border-church-border shadow-inner">
           {tabs.map((tab) => (
             <button
@@ -80,7 +80,7 @@ export default function Header({
           ))}
         </nav>
 
-        {/* Perfil & Logout */}
+        {/* Perfil & Sair */}
         <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           <div className="flex items-center gap-2 bg-church-card border border-church-border p-1.5 pr-3 rounded-2xl">
             <input
@@ -163,14 +163,14 @@ export default function Header({
         ))}
       </nav>
 
-      {/* Barra de Pesquisa */}
+      {/* Busca */}
       <div className="w-full">
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Pesquisar por títulos, artistas ou tons..."
-          className="w-full bg-church-card border border-church-border rounded-2xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-church-blue transition-colors"
+          className="w-full bg-church-card border border-church-border rounded-2xl px-4 py-3 text-base sm:text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-church-blue transition-colors"
         />
       </div>
     </header>

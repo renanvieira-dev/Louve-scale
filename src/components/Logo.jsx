@@ -12,15 +12,12 @@ export default function Logo({ size = 36, className = '' }) {
         xmlns="http://www.w3.org/2000/svg"
         className="w-full h-full"
       >
-        {/* Equalizador Esquerda */}
         <rect x="18" y="44" width="7" height="24" rx="3.5" fill="#2563eb" />
         <rect x="32" y="34" width="7" height="42" rx="3.5" fill="#2563eb" />
         
-        {/* Cruz Central */}
         <rect x="46.5" y="20" width="7" height="60" rx="3.5" fill="#ffffff" />
         <rect x="37" y="35" width="26" height="7" rx="3.5" fill="#ffffff" />
         
-        {/* Equalizador Direita */}
         <rect x="61" y="34" width="7" height="42" rx="3.5" fill="#2563eb" />
         <rect x="75" y="44" width="7" height="24" rx="3.5" fill="#2563eb" />
       </svg>
