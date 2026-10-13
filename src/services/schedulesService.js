@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 export const schedulesService = {
-  // Buscar escalas com voluntários e músicas associadas
+  // Buscar escalas com dados vinculados sem quebrar por coluna ausente
   async getSchedules() {
     const { data, error } = await supabase
       .from('schedules')
@@ -15,10 +15,7 @@ export const schedulesService = {
           profile:profiles ( id, full_name, avatar_url, instrument_role, roles )
         ),
         schedule_songs (
-          id,
-          song_id,
-          custom_key,
-          order_index,
+          *,
           song:songs ( id, title, artist, default_key, chords_url, youtube_url )
         )
       `)
@@ -31,7 +28,7 @@ export const schedulesService = {
     return data || [];
   },
 
-  // Criar nova escala
+  // Criar escala com inserção segura de músicas
   async createSchedule({ title, type, event_date, notes, members = [], songs = [] }) {
     const { data: schedule, error: schedError } = await supabase
       .from('schedules')
@@ -41,7 +38,7 @@ export const schedulesService = {
 
     if (schedError) throw schedError;
 
-    // Inserir membros escalados
+    // Inserir voluntários escalados
     if (members.length > 0) {
       const membersPayload = members.map((m) => ({
         schedule_id: schedule.id,
@@ -52,21 +49,15 @@ export const schedulesService = {
       await supabase.from('schedule_members').insert(membersPayload);
     }
 
-    // Inserir músicas escaladas
+    // Inserir músicas escaladas (com fallback se custom_key/order_index não existirem)
     if (songs.length > 0) {
-      const songsPayload = songs.map((s, idx) => ({
-        schedule_id: schedule.id,
-        song_id: s.song_id,
-        custom_key: s.custom_key,
-        order_index: s.order_index || idx + 1
-      }));
-      await supabase.from('schedule_songs').insert(songsPayload);
+      await this._insertScheduleSongs(schedule.id, songs);
     }
 
     return schedule;
   },
 
-  // Atualizar escala existente (RESOLVE O ERRO updateSchedule is not a function)
+  // Atualizar escala existente com inserção segura de músicas
   async updateSchedule(scheduleId, { title, type, event_date, notes, members = [], songs = [] }) {
     const { data: schedule, error: schedError } = await supabase
       .from('schedules')
@@ -77,7 +68,7 @@ export const schedulesService = {
 
     if (schedError) throw schedError;
 
-    // Atualiza membros: remove os antigos e insere a nova lista
+    // Atualizar voluntários
     await supabase.from('schedule_members').delete().eq('schedule_id', scheduleId);
     if (members.length > 0) {
       const membersPayload = members.map((m) => ({
@@ -89,19 +80,37 @@ export const schedulesService = {
       await supabase.from('schedule_members').insert(membersPayload);
     }
 
-    // Atualiza músicas: remove as antigas e insere a nova lista
+    // Atualizar músicas
     await supabase.from('schedule_songs').delete().eq('schedule_id', scheduleId);
     if (songs.length > 0) {
-      const songsPayload = songs.map((s, idx) => ({
-        schedule_id: scheduleId,
-        song_id: s.song_id,
-        custom_key: s.custom_key,
-        order_index: s.order_index || idx + 1
-      }));
-      await supabase.from('schedule_songs').insert(songsPayload);
+      await this._insertScheduleSongs(scheduleId, songs);
     }
 
     return schedule;
+  },
+
+  // Função auxiliar de inserção blindada contra erro 42703
+  async _insertScheduleSongs(scheduleId, songs) {
+    const fullPayload = songs.map((s, idx) => ({
+      schedule_id: scheduleId,
+      song_id: s.song_id,
+      custom_key: s.custom_key || null,
+      order_index: s.order_index || idx + 1
+    }));
+
+    const { error } = await supabase.from('schedule_songs').insert(fullPayload);
+
+    // Se a tabela ainda não tiver custom_key ou order_index, reenvia apenas os campos padrão
+    if (error && (error.code === '42703' || error.message?.includes('column'))) {
+      const minimalPayload = songs.map((s) => ({
+        schedule_id: scheduleId,
+        song_id: s.song_id
+      }));
+      const { error: retryError } = await supabase.from('schedule_songs').insert(minimalPayload);
+      if (retryError) throw retryError;
+    } else if (error) {
+      throw error;
+    }
   },
 
   // Excluir escala
