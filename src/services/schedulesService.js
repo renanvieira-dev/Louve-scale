@@ -1,129 +1,115 @@
 import { supabase } from './supabase';
 
 export const schedulesService = {
+  // Buscar escalas com voluntários e músicas associadas
   async getSchedules() {
-    const { data: schedules, error: schedError } = await supabase
+    const { data, error } = await supabase
       .from('schedules')
       .select(`
         *,
-        schedule_members (*),
+        schedule_members (
+          id,
+          profile_id,
+          role,
+          status,
+          profile:profiles ( id, full_name, avatar_url, instrument_role, roles )
+        ),
         schedule_songs (
           id,
-          song_key,
+          song_id,
+          custom_key,
           order_index,
-          songs (*)
+          song:songs ( id, title, artist, default_key, chords_url, youtube_url )
         )
       `)
       .order('event_date', { ascending: true });
 
-    if (schedError) {
-      console.error('Erro ao buscar escalas:', schedError);
-      throw schedError;
+    if (error) {
+      console.error('Erro ao buscar escalas:', error);
+      throw error;
     }
-    return schedules || [];
+    return data || [];
   },
 
-  // Suporte a 'type' (service ou rehearsal)
-  async createSchedule({ title, type, event_date, notes, members = [] }) {
-    // 1. Inserir a escala principal
-    const { data: scheduleData, error: scheduleError } = await supabase
+  // Criar nova escala
+  async createSchedule({ title, type, event_date, notes, members = [], songs = [] }) {
+    const { data: schedule, error: schedError } = await supabase
       .from('schedules')
-      .insert([
-        {
-          title: title.trim(),
-          type: type || 'service',
-          event_date,
-          notes: notes?.trim() || null
-        }
-      ])
+      .insert([{ title, type, event_date, notes }])
       .select()
       .single();
 
-    if (scheduleError) {
-      console.error('Erro ao registar em schedules:', scheduleError);
-      throw scheduleError;
-    }
+    if (schedError) throw schedError;
 
-    // 2. Inserir membros escalados caso existam
-    if (members && members.length > 0 && scheduleData?.id) {
-      const payload = members.map((m) => ({
-        schedule_id: scheduleData.id,
+    // Inserir membros escalados
+    if (members.length > 0) {
+      const membersPayload = members.map((m) => ({
+        schedule_id: schedule.id,
         profile_id: m.profile_id,
-        role: m.role || 'Voluntário',
+        role: m.role,
         status: m.status || 'pending'
       }));
-
-      const { error: membersError } = await supabase
-        .from('schedule_members')
-        .insert(payload);
-
-      if (membersError) {
-        console.warn('Aviso: Escala criada, mas ocorreu um erro nos membros:', membersError);
-      }
+      await supabase.from('schedule_members').insert(membersPayload);
     }
 
-    return scheduleData;
+    // Inserir músicas escaladas
+    if (songs.length > 0) {
+      const songsPayload = songs.map((s, idx) => ({
+        schedule_id: schedule.id,
+        song_id: s.song_id,
+        custom_key: s.custom_key,
+        order_index: s.order_index || idx + 1
+      }));
+      await supabase.from('schedule_songs').insert(songsPayload);
+    }
+
+    return schedule;
   },
 
-  async deleteSchedule(scheduleId) {
-    const { error } = await supabase
+  // Atualizar escala existente (RESOLVE O ERRO updateSchedule is not a function)
+  async updateSchedule(scheduleId, { title, type, event_date, notes, members = [], songs = [] }) {
+    const { data: schedule, error: schedError } = await supabase
       .from('schedules')
-      .delete()
-      .eq('id', scheduleId);
-
-    if (error) {
-      console.error('Erro ao excluir escala:', error);
-      throw error;
-    }
-  },
-
-  async addSongToSchedule(scheduleId, songId, songKey, orderIndex = 0) {
-    const { data, error } = await supabase
-      .from('schedule_songs')
-      .insert([
-        {
-          schedule_id: scheduleId,
-          song_id: songId,
-          song_key: songKey,
-          order_index: orderIndex
-        }
-      ])
-      .select(`
-        id,
-        song_key,
-        order_index,
-        songs (*)
-      `)
+      .update({ title, type, event_date, notes })
+      .eq('id', scheduleId)
+      .select()
       .single();
 
-    if (error) {
-      console.error('Erro ao vincular música à escala:', error);
-      throw error;
+    if (schedError) throw schedError;
+
+    // Atualiza membros: remove os antigos e insere a nova lista
+    await supabase.from('schedule_members').delete().eq('schedule_id', scheduleId);
+    if (members.length > 0) {
+      const membersPayload = members.map((m) => ({
+        schedule_id: scheduleId,
+        profile_id: m.profile_id,
+        role: m.role,
+        status: m.status || 'pending'
+      }));
+      await supabase.from('schedule_members').insert(membersPayload);
     }
-    return data;
+
+    // Atualiza músicas: remove as antigas e insere a nova lista
+    await supabase.from('schedule_songs').delete().eq('schedule_id', scheduleId);
+    if (songs.length > 0) {
+      const songsPayload = songs.map((s, idx) => ({
+        schedule_id: scheduleId,
+        song_id: s.song_id,
+        custom_key: s.custom_key,
+        order_index: s.order_index || idx + 1
+      }));
+      await supabase.from('schedule_songs').insert(songsPayload);
+    }
+
+    return schedule;
   },
 
-  async removeSongFromSchedule(scheduleSongId) {
-    const { error } = await supabase
-      .from('schedule_songs')
-      .delete()
-      .eq('id', scheduleSongId);
-
-    if (error) {
-      console.error('Erro ao remover música da escala:', error);
-      throw error;
-    }
-  },
-
-  async updateMemberStatus(memberId, status) {
-    const { error } = await supabase
-      .from('schedule_members')
-      .update({ status })
-      .eq('id', memberId);
-
-    if (error) {
-      console.error('Erro ao atualizar status:', error);
-      throw error;
-    }
+  // Excluir escala
+  async deleteSchedule(scheduleId) {
+    await supabase.from('schedule_members').delete().eq('schedule_id', scheduleId);
+    await supabase.from('schedule_songs').delete().eq('schedule_id', scheduleId);
+    const { error } = await supabase.from('schedules').delete().eq('id', scheduleId);
+    if (error) throw error;
+    return true;
   }
 };

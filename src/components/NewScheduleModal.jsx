@@ -70,17 +70,17 @@ export default function NewScheduleModal({
   const [time, setTime] = useState('19:00');
   const [notes, setNotes] = useState('');
 
-  // Voluntários Escalados
+  // Voluntários da Escala
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [tempProfileId, setTempProfileId] = useState('');
   const [tempRole, setTempRole] = useState('Backing Vocal');
 
-  // Músicas Selecionadas para a Escala
+  // Músicas Selecionadas
   const [selectedSongs, setSelectedSongs] = useState([]);
   const [tempSongId, setTempSongId] = useState('');
   const [tempSongKey, setTempSongKey] = useState('');
 
-  // Modo de Adição Direta de Música (sem sair da escala)
+  // Painel de Cadastro Rápido de Música
   const [showQuickAddSong, setShowQuickAddSong] = useState(false);
   const [quickSearchTerm, setQuickSearchTerm] = useState('');
   const [quickIsSearching, setQuickIsSearching] = useState(false);
@@ -157,7 +157,7 @@ export default function NewScheduleModal({
     setDate(result.toISOString().split('T')[0]);
   };
 
-  // Adicionar Membro
+  // Voluntários
   const handleAddMember = () => {
     if (!tempProfileId) {
       alert('Selecione um voluntário.');
@@ -183,7 +183,7 @@ export default function NewScheduleModal({
     setSelectedMembers((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Adicionar Música Existente do Repertório
+  // Músicas Existentes
   const handleAddExistingSong = () => {
     if (!tempSongId) {
       alert('Selecione uma música do repertório.');
@@ -211,7 +211,7 @@ export default function NewScheduleModal({
     setSelectedSongs((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // 1. Busca rápida de louvores dentro da escala
+  // Busca de Músicas
   const handleQuickSearchTrack = async (e) => {
     e?.preventDefault();
     if (!quickSearchTerm.trim()) return;
@@ -261,33 +261,16 @@ export default function NewScheduleModal({
     }
   };
 
-  // 2. Preencher formulário rápido ao selecionar versão
-  const handleSelectQuickTrack = async (track) => {
+  const handleSelectQuickTrack = (track) => {
     setQuickTitle(track.title);
     setQuickArtist(track.artist);
     setQuickChords(track.chordsUrl);
     setQuickKey(track.key || 'G');
-    setQuickSearchResults([]);
-
-    // Tentar resolver link direto de vídeo
-    try {
-      const query = `${track.title} ${track.artist} oficial`;
-      const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`)}`);
-      if (res.ok) {
-        const data = await res.json();
-        const match = data.contents && data.contents.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-        if (match && match[1]) {
-          setQuickYoutube(`https://www.youtube.com/watch?v=${match[1]}`);
-          return;
-        }
-      }
-    } catch {
-      // fallback
-    }
     setQuickYoutube(track.youtubeUrl);
+    setQuickSearchResults([]);
   };
 
-  // 3. Salvar nova música e inseri-la instantaneamente na escala
+  // Salvar Nova Música e Inserir na Escala
   const handleSaveAndAttachSong = async (e) => {
     e.preventDefault();
     if (!quickTitle.trim() || !quickArtist.trim()) {
@@ -296,7 +279,7 @@ export default function NewScheduleModal({
     }
 
     if (!onCreateSong) {
-      alert('Função de criação de música não configurada.');
+      alert('Função de criação de música indisponível.');
       return;
     }
 
@@ -308,8 +291,7 @@ export default function NewScheduleModal({
         default_key: quickKey,
         bpm: quickBpm ? parseInt(quickBpm, 10) : null,
         chords_url: quickChords.trim() || null,
-        youtube_url: quickYoutube.trim() || null,
-        tags: []
+        youtube_url: quickYoutube.trim() || null
       });
 
       if (newSong && newSong.id) {
@@ -324,7 +306,6 @@ export default function NewScheduleModal({
         ]);
       }
 
-      // Resetar formulário rápido
       setQuickTitle('');
       setQuickArtist('');
       setQuickChords('');
@@ -394,7 +375,7 @@ export default function NewScheduleModal({
           </button>
         </div>
 
-        {/* Formulário com Scroll */}
+        {/* Formulário */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
           {/* Tipo de Evento */}
@@ -527,14 +508,13 @@ export default function NewScheduleModal({
             />
           </div>
 
-          {/* SEÇÃO: MÚSICAS DA ESCALA + CADASTRO DIRETO */}
+          {/* MÚSICAS DA ESCALA */}
           <div className="pt-3 border-t border-church-border space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-white flex items-center gap-1.5">
                 <Music2 className="w-3.5 h-3.5 text-church-blue" /> Músicas da Escala
               </label>
 
-              {/* Botão de Alternar para Cadastrar Nova Música Direto */}
               <button
                 type="button"
                 onClick={() => setShowQuickAddSong(!showQuickAddSong)}
@@ -554,7 +534,7 @@ export default function NewScheduleModal({
               </button>
             </div>
 
-            {/* PAINEL 1: CADASTRAR NOVA MÚSICA DIRETO NA ESCALA */}
+            {/* Painel 1: Cadastro Direto */}
             {showQuickAddSong ? (
               <div className="bg-church-dark p-3.5 rounded-2xl border border-church-blue/40 space-y-3 animate-in fade-in">
                 <div className="flex items-center justify-between">
@@ -564,7 +544,6 @@ export default function NewScheduleModal({
                   <span className="text-[10px] text-slate-400">Puxa cifra, vídeo e tom</span>
                 </div>
 
-                {/* Busca Rápida de Versões */}
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -584,7 +563,6 @@ export default function NewScheduleModal({
                   </button>
                 </div>
 
-                {/* Lista de Versões Encontradas */}
                 {quickSearchResults.length > 0 && (
                   <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                     {quickSearchResults.map((track, i) => (
@@ -610,7 +588,6 @@ export default function NewScheduleModal({
                   </div>
                 )}
 
-                {/* Campos da Nova Música */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input
                     type="text"
@@ -675,7 +652,7 @@ export default function NewScheduleModal({
                 </button>
               </div>
             ) : (
-              /* PAINEL 2: SELECIONAR DO REPERTÓRIO EXISTENTE */
+              /* Painel 2: Repertório Existente */
               <div className="grid grid-cols-1 gap-2 bg-church-dark p-3 rounded-2xl border border-church-border">
                 <select
                   value={tempSongId}
@@ -720,7 +697,7 @@ export default function NewScheduleModal({
               </div>
             )}
 
-            {/* LISTA DE MÚSICAS JÁ ADICIONADAS À ESCALA */}
+            {/* Músicas já adicionadas */}
             {selectedSongs.length > 0 && (
               <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                 {selectedSongs.map((song, idx) => (
@@ -752,7 +729,7 @@ export default function NewScheduleModal({
             )}
           </div>
 
-          {/* SEÇÃO: VOLUNTÁRIOS ESCALADOS */}
+          {/* VOLUNTÁRIOS ESCALADOS */}
           <div className="pt-3 border-t border-church-border space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-white flex items-center gap-1.5">

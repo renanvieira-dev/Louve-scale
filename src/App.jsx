@@ -20,7 +20,7 @@ import {
   Phone, 
   Cake, 
   Shield, 
-  ShieldCheck,
+  ShieldCheck, 
   ShieldAlert,
   Mail, 
   Lock, 
@@ -61,7 +61,7 @@ export default function App() {
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isSongModalOpen, setIsSongModalOpen] = useState(false);
 
-  // Estados da Tela de Login / Cadastro
+  // Estados de Login / Registo
   const [authMode, setAuthMode] = useState('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -71,7 +71,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  // 1. Sessão Supabase
+  // Sessão Supabase
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -128,7 +128,7 @@ export default function App() {
     };
   }, []);
 
-  // 2. Buscar Dados
+  // Buscar Dados
   const fetchData = async () => {
     try {
       const { data: profilesData } = await supabase
@@ -143,7 +143,6 @@ export default function App() {
         .order('title', { ascending: true });
       if (songsData) setSongs(songsData);
 
-      // Buscar Escalas com Membros e Músicas vinculadas
       const schedulesData = await schedulesService.getSchedules();
       if (schedulesData) setSchedules(schedulesData);
     } catch (err) {
@@ -237,22 +236,60 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  // Salvar Escala (Criar ou Atualizar)
+  // Salvar Escala com Fallback Seguro para Edição
   const handleSaveSchedule = async (schedulePayload, scheduleId) => {
     try {
       if (scheduleId) {
-        // Atualizar escala existente
-        await schedulesService.updateSchedule(scheduleId, schedulePayload);
+        if (typeof schedulesService.updateSchedule === 'function') {
+          await schedulesService.updateSchedule(scheduleId, schedulePayload);
+        } else {
+          // Fallback seguro caso o service local ainda não tenha updateSchedule
+          const { error: updErr } = await supabase
+            .from('schedules')
+            .update({
+              title: schedulePayload.title,
+              type: schedulePayload.type,
+              event_date: schedulePayload.event_date,
+              notes: schedulePayload.notes
+            })
+            .eq('id', scheduleId);
+
+          if (updErr) throw updErr;
+
+          // Atualizar membros
+          await supabase.from('schedule_members').delete().eq('schedule_id', scheduleId);
+          if (schedulePayload.members?.length > 0) {
+            const mems = schedulePayload.members.map(m => ({
+              schedule_id: scheduleId,
+              profile_id: m.profile_id,
+              role: m.role,
+              status: m.status || 'pending'
+            }));
+            await supabase.from('schedule_members').insert(mems);
+          }
+
+          // Atualizar músicas
+          await supabase.from('schedule_songs').delete().eq('schedule_id', scheduleId);
+          if (schedulePayload.songs?.length > 0) {
+            const sngs = schedulePayload.songs.map((s, idx) => ({
+              schedule_id: scheduleId,
+              song_id: s.song_id,
+              custom_key: s.custom_key,
+              order_index: s.order_index || idx + 1
+            }));
+            await supabase.from('schedule_songs').insert(sngs);
+          }
+        }
       } else {
-        // Criar nova escala
         await schedulesService.createSchedule(schedulePayload);
       }
+
       await fetchData();
       setIsScheduleModalOpen(false);
       setEditingSchedule(null);
     } catch (err) {
       console.error('Erro ao salvar escala:', err);
-      alert('Erro ao salvar a escala.');
+      alert('Erro ao salvar escala.');
     }
   };
 
@@ -268,26 +305,46 @@ export default function App() {
     }
   };
 
-  // Abrir Modal para Edição de Escala
+  // Abrir Modal de Edição
   const handleOpenEditSchedule = (schedule) => {
     setEditingSchedule(schedule);
     setIsScheduleModalOpen(true);
   };
 
-  // Salvar Louvor
+  // Salvar Música Sanitizada (Evita Erro 400 no Supabase)
   const handleSaveSong = async (songPayload) => {
     try {
-      const { error } = await supabase.from('songs').insert([songPayload]);
+      const cleanPayload = {
+        title: songPayload.title?.trim(),
+        artist: songPayload.artist?.trim(),
+        default_key: songPayload.default_key || 'G',
+        chords_url: songPayload.chords_url?.trim() || null,
+        youtube_url: songPayload.youtube_url?.trim() || null
+      };
+
+      if (songPayload.bpm) {
+        cleanPayload.bpm = parseInt(songPayload.bpm, 10);
+      }
+
+      const { data, error } = await supabase
+        .from('songs')
+        .insert([cleanPayload])
+        .select()
+        .single();
+
       if (error) throw error;
+
       await fetchData();
       setIsSongModalOpen(false);
+      return data;
     } catch (err) {
       console.error('Erro ao cadastrar música:', err);
-      alert('Erro ao adicionar o louvor.');
+      alert('Erro ao adicionar o louvor: ' + (err.message || 'Verifique os dados preenchidos.'));
+      throw err;
     }
   };
 
-  // Excluir Louvor
+  // Excluir Música
   const handleDeleteSong = async (songId) => {
     if (!confirm('Deseja excluir esta música do repertório?')) return;
     try {
@@ -401,7 +458,7 @@ export default function App() {
   }
 
   // ==========================================
-  // TELA DE LOGIN / CADASTRO
+  // TELA DE LOGIN / REGISTO
   // ==========================================
   if (!currentUser) {
     return (
@@ -615,7 +672,7 @@ export default function App() {
             />
           )}
 
-          {/* ABA 2: ESCALAS COM VISUALIZAÇÃO DE REPERTÓRIO, EDIÇÃO E EXCLUSÃO */}
+          {/* ABA 2: ESCALAS */}
           {activeTab === 'schedules' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex items-center justify-between">
@@ -680,7 +737,6 @@ export default function App() {
                               <span className="text-xs text-slate-400 capitalize block mt-0.5">{formattedDate}</span>
                             </div>
 
-                            {/* Ações de Admin (Editar / Excluir) */}
                             {isCurrentUserAdmin && (
                               <div className="flex items-center gap-1">
                                 <button
@@ -709,7 +765,7 @@ export default function App() {
                             </p>
                           )}
 
-                          {/* REPERTÓRIO SELECIONADO PARA O CULTO */}
+                          {/* Músicas Selecionadas */}
                           <div className="space-y-1.5 pt-1">
                             <span className="text-[11px] font-bold text-church-blue uppercase flex items-center gap-1.5">
                               <Music2 className="w-3.5 h-3.5" /> Repertório ({scheduleSongs.length} músicas):
@@ -774,7 +830,7 @@ export default function App() {
                             )}
                           </div>
 
-                          {/* EQUIPE ESCALADA */}
+                          {/* Voluntários Escalados */}
                           <div className="space-y-1.5 pt-1">
                             <span className="text-[11px] font-bold text-slate-300 uppercase flex items-center gap-1.5">
                               <Users className="w-3.5 h-3.5 text-church-blue" /> Voluntários ({scheduleMembers.length}):
@@ -878,11 +934,6 @@ export default function App() {
                               {song.bpm} BPM
                             </span>
                           )}
-                          {Array.isArray(song.tags) && song.tags.map((tag, idx) => (
-                            <span key={idx} className="text-[10px] font-semibold px-2 py-0.5 rounded-lg bg-slate-900 text-slate-300 border border-church-border">
-                              {tag}
-                            </span>
-                          ))}
                         </div>
                       </div>
 
@@ -1079,7 +1130,7 @@ export default function App() {
 
         </main>
 
-        {/* Modal de Escala com Suporte a Edição e Músicas */}
+        {/* Modal de Escala */}
         <NewScheduleModal
           isOpen={isScheduleModalOpen}
           onClose={() => {
