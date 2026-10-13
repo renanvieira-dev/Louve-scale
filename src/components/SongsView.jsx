@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import SongCard from './SongCard';
 import NewSongModal from './NewSongModal';
+import EditSongModal from './EditSongModal';
 import { Plus } from 'lucide-react';
 
 export default function SongsView({ 
   songs = [], 
   onAddSong, 
+  onUpdateSong,
   onDeleteSong, 
   searchQuery = '', 
   isAdmin = false 
 }) {
   const [selectedTag, setSelectedTag] = useState('Todas');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingSong, setEditingSong] = useState(null);
 
   const tags = ['Todas', 'Adoração', 'Celebração / Júbilo', 'Abertura', 'Comunhão'];
 
@@ -49,7 +52,7 @@ export default function SongsView({
         {/* Botão de Adicionar Música (Admin) */}
         {isAdmin && (
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => setIsAddModalOpen(true)}
             className="inline-flex items-center justify-center gap-2 bg-[#a3e635] hover:bg-[#b5f448] text-black px-5 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-md shadow-[#a3e635]/20 cursor-pointer self-start sm:self-auto"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -67,6 +70,7 @@ export default function SongsView({
               song={song} 
               isAdmin={isAdmin}
               onDeleteSong={onDeleteSong}
+              onEditSong={(s) => setEditingSong(s)}
             />
           ))}
         </div>
@@ -82,12 +86,22 @@ export default function SongsView({
         </div>
       )}
 
-      {/* Modal de Cadastro de Música */}
+      {/* Modal de Criação */}
       {isAdmin && (
         <NewSongModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          isOpen={isAddModalOpen}
+          onClose={() => setIsAddModalOpen(false)}
           onSave={onAddSong}
+        />
+      )}
+
+      {/* Modal de Edição */}
+      {isAdmin && editingSong && (
+        <EditSongModal
+          isOpen={Boolean(editingSong)}
+          song={editingSong}
+          onClose={() => setEditingSong(null)}
+          onSave={onUpdateSong}
         />
       )}
     </div>

@@ -21,7 +21,7 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 1. Escuta contínua de sessão e persistência
+  // 1. Escuta contínua de sessão e persistência com authStateChange
   useEffect(() => {
     let isMounted = true;
 
@@ -84,13 +84,22 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  // Músicas
+  // Músicas: Cadastrar, Editar e Excluir
   const handleAddSong = async (newSongData) => {
     try {
       const savedSong = await songsService.addSong(newSongData);
       setSongs((prev) => [savedSong, ...prev]);
     } catch {
       alert('Erro ao guardar música.');
+    }
+  };
+
+  const handleUpdateSong = async (songId, updatedData) => {
+    try {
+      const updated = await songsService.updateSong(songId, updatedData);
+      setSongs((prev) => prev.map((s) => (s.id === songId ? updated : s)));
+    } catch {
+      alert('Erro ao atualizar música.');
     }
   };
 
@@ -111,7 +120,7 @@ export default function App() {
     }
   };
 
-  // Escalas
+  // Escalas: Criar e Excluir
   const handleAddSchedule = async (schedulePayload) => {
     try {
       await schedulesService.createSchedule(schedulePayload);
@@ -200,7 +209,7 @@ export default function App() {
     }
   };
 
-  // Callback de atualização de perfil/funções na lista de voluntários
+  // Voluntários: Atualizar papéis e funções
   const handleProfileUpdated = (userId, updatedFields) => {
     setProfiles((prev) =>
       prev.map((p) => (p.id === userId ? { ...p, ...updatedFields } : p))
@@ -268,7 +277,8 @@ export default function App() {
           {activeTab === 'songs' && (
             <SongsView 
               songs={songs} 
-              onAddSong={handleAddSong} 
+              onAddSong={handleAddSong}
+              onUpdateSong={handleUpdateSong}
               onDeleteSong={handleDeleteSong}
               searchQuery={searchQuery}
               isAdmin={isAdmin}

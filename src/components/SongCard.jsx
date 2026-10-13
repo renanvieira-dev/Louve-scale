@@ -1,7 +1,12 @@
 import React from 'react';
-import { Music, Play, ExternalLink, Trash2 } from 'lucide-react';
+import { Music, Play, ExternalLink, Trash2, Edit2 } from 'lucide-react';
 
-export default function SongCard({ song, isAdmin = false, onDeleteSong }) {
+export default function SongCard({ 
+  song, 
+  isAdmin = false, 
+  onDeleteSong, 
+  onEditSong 
+}) {
   return (
     <div className="bg-[#131614] border border-zinc-800/80 hover:border-[#a3e635]/50 rounded-3xl p-5 flex flex-col justify-between transition-all group relative">
       <div>
@@ -11,24 +16,39 @@ export default function SongCard({ song, isAdmin = false, onDeleteSong }) {
           </span>
           
           <div className="flex items-center gap-1.5">
-            <span className="px-2 py-0.5 rounded-lg bg-[#a3e635]/10 border border-[#a3e635]/30 text-[#a3e635] text-[11px] font-bold">
+            <span className="px-2.5 py-0.5 rounded-lg bg-[#a3e635]/10 border border-[#a3e635]/30 text-[#a3e635] text-[11px] font-bold">
               Tom: {song.default_key}
             </span>
 
-            {/* Botão de Excluir Música (Apenas Admin) */}
-            {isAdmin && onDeleteSong && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm(`Tem certeza que deseja excluir a música "${song.title}"?`)) {
-                    onDeleteSong(song.id);
-                  }
-                }}
-                className="w-7 h-7 rounded-lg bg-zinc-900 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 flex items-center justify-center transition-colors cursor-pointer"
-                title="Excluir Música"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+            {/* Ações de Administrador: Editar e Excluir */}
+            {isAdmin && (
+              <div className="flex items-center gap-1">
+                {onEditSong && (
+                  <button
+                    type="button"
+                    onClick={() => onEditSong(song)}
+                    className="w-7 h-7 rounded-lg bg-zinc-900 hover:bg-[#a3e635]/20 text-zinc-400 hover:text-[#a3e635] flex items-center justify-center transition-colors cursor-pointer"
+                    title="Editar Música (Tom, YouTube, Cifra)"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {onDeleteSong && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`Tem certeza que deseja excluir a música "${song.title}"?`)) {
+                        onDeleteSong(song.id);
+                      }
+                    }}
+                    className="w-7 h-7 rounded-lg bg-zinc-900 hover:bg-red-500/20 text-zinc-500 hover:text-red-400 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Excluir Música"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

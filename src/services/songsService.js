@@ -28,7 +28,22 @@ export const songsService = {
     return data;
   },
 
-  // Nova função para excluir música
+  // Atualizar dados da música existente (Tom, YouTube, Cifra, etc.)
+  async updateSong(songId, updatedData) {
+    const { data, error } = await supabase
+      .from('songs')
+      .update(updatedData)
+      .eq('id', songId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erro ao atualizar música:', error);
+      throw error;
+    }
+    return data;
+  },
+
   async deleteSong(songId) {
     const { error } = await supabase
       .from('songs')
