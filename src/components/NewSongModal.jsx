@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Music2, Search, Loader2, Sparkles, Youtube, Globe, Check } from 'lucide-react';
+import { X, Music2, Search, Loader2, Sparkles, Play, Globe, Check } from "lucide-react"
 import { musicSearchService } from '../services/musicSearchService';
 
 const COMMON_KEYS = [
@@ -280,7 +280,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                  <Youtube className="w-3.5 h-3.5 text-red-500" /> Link do YouTube / Áudio
+                    <Play className="w-3.5 h-3.5 text-red-500 fill-red-500" /> Link do YouTube / Áudio
                 </label>
                 <input
                   type="url"
