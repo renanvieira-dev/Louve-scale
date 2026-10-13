@@ -7,7 +7,6 @@ import {
   Tag, 
   Search, 
   Loader2, 
-  Video, 
   ExternalLink 
 } from 'lucide-react';
 
@@ -26,15 +25,16 @@ const KEY_MAP = {
   'SI': 'B'
 };
 
-// Mapeamento de tons conhecidos por palavra-chave de repertório
 const DEFAULT_TONES_MAP = {
   'e ele': 'E',
   'é ele': 'E',
+  'tu es + e ele': 'E',
+  'tu és + é ele': 'E',
   'bondade de deus': 'G',
   'todavia me alegrarei': 'C',
   'ousado amor': 'Gb',
-  'oh quao lindo esse nome': 'D',
-  'oh quão lindo esse nome': 'D',
+  'oh quao lindo': 'D',
+  'oh quão lindo': 'D',
   'a bencao': 'Bb',
   'a bênção': 'Bb',
   'me atraiu': 'Em',
@@ -49,6 +49,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isResolvingVideo, setIsResolvingVideo] = useState(false);
 
   // Campos do formulário
   const [title, setTitle] = useState('');
@@ -85,7 +86,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     return 'G';
   };
 
-  // Busca real na API pública da Apple/iTunes (sem bloqueio de CORS e com catálogo gospel completo)
+  // 1. Busca faixas e versões exatas
   const handleSearchVersions = async (e) => {
     e?.preventDefault();
     const query = searchTerm.trim();
@@ -114,7 +115,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             ? track.artworkUrl100.replace('100x100bb.jpg', '300x300bb.jpg')
             : '';
 
-          // Slug para Cifra Club direto
+          // Gerar link formatado do Cifra Club
           const cleanArtist = artistName
             .toLowerCase()
             .normalize('NFD')
@@ -129,10 +130,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             .replace(/[^a-z0-9]/g, '-')
             .replace(/-+/g, '-');
 
-          // Link específico de vídeo oficial no YouTube
-          const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(trackTitle + ' ' + artistName + ' louvor oficial')}`;
-
-          // Tenta detectar tom pela base ou tom padrão
+          // Detectar tom
           const checkNormalized = trackTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           let estimatedKey = 'G';
           for (const [pattern, keyVal] of Object.entries(DEFAULT_TONES_MAP)) {
@@ -148,9 +146,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             artist: artistName,
             album: albumName,
             thumbnail: highResArtwork,
-            youtubeUrl: ytUrl,
             chordsUrl: `https://www.cifraclub.com.br/${cleanArtist}/${cleanSong}/`,
-            chordsSearchUrl: `https://www.cifraclub.com.br/?q=${encodeURIComponent(trackTitle + ' ' + artistName)}`,
             suggestedKey: estimatedKey
           };
         });
@@ -167,14 +163,35 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     }
   };
 
-  // Ao clicar na versão exata encontrada
-  const handleSelectVersion = (item) => {
+  // 2. Ao clicar na versão exata, busca o ID do vídeo do YouTube para montar a URL direta
+  const handleSelectVersion = async (item) => {
     setTitle(item.title);
     setArtist(item.artist);
-    setYoutubeUrl(item.youtubeUrl);
     setChordsUrl(item.chordsUrl);
     setDefaultKey(normalizeDetectedKey(item.suggestedKey));
-    setSearchResults([]);
+
+    // Coloca inicialmente um fallback
+    const fallbackSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(item.title + ' ' + item.artist)}`;
+    setYoutubeUrl(fallbackSearchUrl);
+
+    // Busca o ID direto do vídeo no YouTube via endpoint público sem CORS
+    try {
+      setIsResolvingVideo(true);
+      const queryVideo = `${item.title} ${item.artist} oficial`;
+      
+      const res = await fetch(`https://invidious.io.lol/api/v1/search?q=${encodeURIComponent(queryVideo)}&type=video`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0 && data[0].videoId) {
+          setYoutubeUrl(`https://www.youtube.com/watch?v=${data[0].videoId}`);
+        }
+      }
+    } catch (e) {
+      console.warn('Fallback para busca de vídeo:', e);
+    } finally {
+      setIsResolvingVideo(false);
+      setSearchResults([]);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -231,7 +248,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
         {/* Corpo com Scroll */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
-          {/* BARRA DE PESQUISA DIRETA */}
+          {/* BARRA DE PESQUISA */}
           <div className="bg-church-dark p-3.5 rounded-2xl border border-church-border space-y-2.5">
             <label className="text-xs font-bold text-white flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-church-blue" /> Buscar Música e Versões Oficiais
@@ -258,7 +275,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               </button>
             </form>
 
-            {/* LISTA DE VERSÕES REAIS ENCONTRADAS */}
+            {/* LISTA DE RESULTADOS */}
             {searchResults.length > 0 && (
               <div className="pt-2 space-y-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -308,7 +325,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
 
             {hasSearched && searchResults.length === 0 && !isSearching && (
               <p className="text-[11px] text-slate-500 italic py-1">
-                Nenhuma música encontrada com esse termo. Tente adicionar o nome do artista na busca.
+                Nenhuma música encontrada com esse termo.
               </p>
             )}
           </div>
@@ -335,7 +352,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={artist}
                 onChange={(e) => setArtist(e.target.value)}
-                placeholder="Ex: Gabi Sampaio / Droba"
+                placeholder="Ex: fhop music, Paulo e Rebeca & Emi Sousa"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -397,28 +414,35 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               />
             </div>
 
-            {/* Link do Vídeo no YouTube */}
+            {/* Link do Vídeo no YouTube com Indicador de Resolução */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-church-red" /> Vídeo de Referência (YouTube)
+                  <LinkIcon className="w-3.5 h-3.5 text-church-red" /> Vídeo Específico no YouTube
                 </label>
-                {youtubeUrl && (
-                  <a 
-                    href={youtubeUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-[10px] text-red-400 hover:underline flex items-center gap-0.5"
-                  >
-                    Abrir vídeo <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                )}
+                <div className="flex items-center gap-2">
+                  {isResolvingVideo && (
+                    <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> Vinculando vídeo...
+                    </span>
+                  )}
+                  {youtubeUrl && (
+                    <a 
+                      href={youtubeUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-[10px] text-red-400 hover:underline flex items-center gap-0.5"
+                    >
+                      Abrir vídeo <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                </div>
               </div>
               <input
                 type="url"
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="https://www.youtube.com/..."
+                placeholder="https://www.youtube.com/watch?v=..."
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
