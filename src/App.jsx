@@ -4,6 +4,7 @@ import DashboardOverview from './components/DashboardOverview';
 import SongsView from './components/SongsView';
 import SchedulesView from './components/SchedulesView';
 import AuthModal from './components/AuthModal';
+import TeamManagementModal from './components/TeamManagementModal';
 import { songsService } from './services/songsService';
 import { schedulesService } from './services/schedulesService';
 import { authService } from './services/authService';
@@ -12,7 +13,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   
-  // Painel como aba inicial
+  // Navegação
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [songs, setSongs] = useState([]);
@@ -20,7 +21,10 @@ export default function App() {
   const [profiles, setProfiles] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 1. Escuta contínua de sessão com persistência e sincronização de roles
+  // Estado do Modal de Gerenciamento da Equipe
+  const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+
+  // 1. Escuta contínua de sessão
   useEffect(() => {
     let isMounted = true;
 
@@ -83,7 +87,7 @@ export default function App() {
     setCurrentUser(null);
   };
 
-  // Cadastrar nova música
+  // Músicas
   const handleAddSong = async (newSongData) => {
     try {
       const savedSong = await songsService.addSong(newSongData);
@@ -93,13 +97,10 @@ export default function App() {
     }
   };
 
-  // Excluir música do repertório (Admin)
   const handleDeleteSong = async (songId) => {
     try {
       await songsService.deleteSong(songId);
       setSongs((prev) => prev.filter((s) => s.id !== songId));
-      
-      // Atualiza também nas escalas em memória caso alguma estivesse exibindo
       setSchedules((prev) =>
         prev.map((sched) => ({
           ...sched,
@@ -109,11 +110,11 @@ export default function App() {
         }))
       );
     } catch {
-      alert('Erro ao excluir música. Verifique se tem permissão ou se a música está vinculada a alguma escala.');
+      alert('Erro ao excluir música.');
     }
   };
 
-  // Criar escala / ensaio
+  // Escalas
   const handleAddSchedule = async (schedulePayload) => {
     try {
       await schedulesService.createSchedule(schedulePayload);
@@ -124,7 +125,6 @@ export default function App() {
     }
   };
 
-  // Excluir escala / ensaio
   const handleDeleteSchedule = async (scheduleId) => {
     try {
       await schedulesService.deleteSchedule(scheduleId);
@@ -134,7 +134,6 @@ export default function App() {
     }
   };
 
-  // Atualizar confirmação de presença do membro
   const handleStatusChange = async (memberId, status) => {
     try {
       await schedulesService.updateMemberStatus(memberId, status);
@@ -151,7 +150,6 @@ export default function App() {
     }
   };
 
-  // Adicionar música à escala
   const handleAddSongToSchedule = async (scheduleId, payload, orderIndex) => {
     try {
       let songIdToLink = payload.songId;
@@ -184,7 +182,6 @@ export default function App() {
     }
   };
 
-  // Remover música da escala
   const handleRemoveSongFromSchedule = async (scheduleId, scheduleSongId) => {
     try {
       await schedulesService.removeSongFromSchedule(scheduleSongId);
@@ -206,7 +203,13 @@ export default function App() {
     }
   };
 
-  // Tela de verificação inicial
+  // Callback ao atualizar cargo de membro
+  const handleRoleUpdated = (userId, newRole) => {
+    setProfiles((prev) =>
+      prev.map((p) => (p.id === userId ? { ...p, role: newRole } : p))
+    );
+  };
+
   if (isAuthChecking) {
     return (
       <div className="min-h-screen bg-[#0b0d0c] flex items-center justify-center">
@@ -215,7 +218,6 @@ export default function App() {
     );
   }
 
-  // Se não autenticado, abre o modal de login/cadastro
   if (!currentUser) {
     return <AuthModal onLoginSuccess={(user) => setCurrentUser(user)} />;
   }
@@ -242,6 +244,8 @@ export default function App() {
               schedules={schedules}
               profiles={profiles}
               onNavigate={setActiveTab}
+              isAdmin={isAdmin}
+              onOpenTeamManagement={() => setIsTeamModalOpen(true)}
             />
           )}
 
@@ -269,13 +273,25 @@ export default function App() {
           {activeTab === 'songs' && (
             <SongsView 
               songs={songs} 
-              onAddSong={handleAddSong}
+              onAddSong={handleAddSong} 
               onDeleteSong={handleDeleteSong}
               searchQuery={searchQuery}
               isAdmin={isAdmin}
             />
           )}
         </main>
+
+        {/* Modal de Gestão da Equipe (Disponível para Admin) */}
+        {isAdmin && (
+          <TeamManagementModal
+            isOpen={isTeamModalOpen}
+            onClose={() => setIsTeamModalOpen(false)}
+            profiles={profiles}
+            currentUserId={currentUser?.user?.id}
+            onRoleUpdated={handleRoleUpdated}
+          />
+        )}
+
       </div>
     </div>
   );

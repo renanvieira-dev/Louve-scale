@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Shield, ShieldCheck, User, Users, Check, AlertCircle } from 'lucide-react';
+import { X, Shield, User, ShieldCheck, AlertCircle } from 'lucide-react';
 import { authService } from '../services/authService';
 
 export default function TeamManagementModal({ 
@@ -15,7 +15,6 @@ export default function TeamManagementModal({
   if (!isOpen) return null;
 
   const handleToggleRole = async (targetUser) => {
-    // Evita que o admin logado tire seu próprio acesso por engano
     if (targetUser.id === currentUserId) {
       alert('Você não pode alterar seu próprio nível de acesso.');
       return;
@@ -23,7 +22,7 @@ export default function TeamManagementModal({
 
     const nextRole = targetUser.role === 'admin' ? 'member' : 'admin';
     const confirmMsg = nextRole === 'admin' 
-      ? `Deseja conceder permissão de Administrador para ${targetUser.full_name}? Ele poderá criar/excluir escalas e músicas.`
+      ? `Deseja conceder permissão de Administrador para ${targetUser.full_name}?`
       : `Deseja remover o cargo de Administrador de ${targetUser.full_name}?`;
 
     if (!window.confirm(confirmMsg)) return;
@@ -32,8 +31,8 @@ export default function TeamManagementModal({
     try {
       await authService.updateUserRole(targetUser.id, nextRole);
       onRoleUpdated(targetUser.id, nextRole);
-    } catch (err) {
-      alert('Erro ao atualizar permissão. Verifique suas permissões no Supabase.');
+    } catch {
+      alert('Erro ao atualizar permissão no banco.');
     } finally {
       setUpdatingId(null);
     }
@@ -71,7 +70,7 @@ export default function TeamManagementModal({
         <div className="p-4 border-b border-zinc-800/60">
           <input
             type="text"
-            placeholder="Buscar membro por nome ou e-mail..."
+            placeholder="Buscar por nome ou e-mail..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-[#0b0d0c] border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-[#a3e635]"
@@ -141,7 +140,7 @@ export default function TeamManagementModal({
           })}
         </div>
 
-        {/* Rodapé Informativo */}
+        {/* Rodapé */}
         <div className="px-6 py-3 border-t border-zinc-800/80 bg-[#0e1110] flex items-center justify-between text-[11px] text-zinc-400">
           <span className="flex items-center gap-1">
             <AlertCircle className="w-3.5 h-3.5 text-[#a3e635]" />
