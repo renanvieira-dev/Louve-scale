@@ -9,13 +9,10 @@ import {
   Trash2, 
   CalendarDays, 
   Music2, 
-  FileText, 
-  Video,
-  Search,
-  Loader2,
-  ExternalLink,
-  Sparkles,
-  CheckCircle2
+  Search, 
+  Loader2, 
+  Sparkles, 
+  CheckCircle2 
 } from 'lucide-react';
 
 const SCHEDULE_ROLES = [
@@ -167,7 +164,10 @@ export default function NewScheduleModal({
     if (daysUntil === 0) daysUntil = 7;
 
     result.setDate(today.getDate() + daysUntil);
-    setDate(result.toISOString().split('T')[0]);
+    const yyyy = result.getFullYear();
+    const mm = String(result.getMonth() + 1).padStart(2, '0');
+    const dd = String(result.getDate()).padStart(2, '0');
+    setDate(`${yyyy}-${mm}-${dd}`);
   };
 
   const handleAddMember = () => {
@@ -285,15 +285,15 @@ export default function NewScheduleModal({
     }
   };
 
-  // Ao selecionar a versão rápida, resolve o link exato do YouTube via API
   const handleSelectQuickTrack = async (track) => {
     setQuickTitle(track.title);
     setQuickArtist(track.artist);
+    setQuickChords(track.chordsUrl);
+    setQuickKey(track.key || 'G');
     setQuickSearchResults([]);
 
-    const queryText = `${track.title} ${track.artist}`.trim();
+    const query = `${track.title} ${track.artist}`.trim();
 
-    // 1. Puxar Cifra Real e Tom Real
     try {
       const chordsRes = await fetch(`/api/chords?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
       if (chordsRes.ok) {
@@ -301,25 +301,17 @@ export default function NewScheduleModal({
         if (chordsData.url) setQuickChords(chordsData.url);
         if (chordsData.key) setQuickKey(chordsData.key);
       }
-    } catch (e) {
-      setQuickChords(`https://www.cifraclub.com.br/?q=${encodeURIComponent(queryText)}`);
-    }
+    } catch (_) {}
 
-    // 2. Puxar Vídeo Direto
     try {
-      const ytRes = await fetch(`/api/youtube?q=${encodeURIComponent(queryText + ' oficial')}`);
-      if (ytRes.ok) {
-        const ytData = await ytRes.json();
-        if (ytData && ytData.url) {
-          setQuickYoutube(ytData.url);
-        }
+      const res = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.url) setQuickYoutube(data.url);
       }
-    } catch (e) {
-      setQuickYoutube(`https://www.youtube.com/results?search_query=${encodeURIComponent(queryText + ' oficial')}`);
-    }
+    } catch (_) {}
   };
 
-  // Salva e anexa a música mantendo o formulário ativo para a próxima
   const handleSaveAndAttachSong = async (e) => {
     e.preventDefault();
     if (!quickTitle.trim() || !quickArtist.trim()) {
@@ -327,10 +319,7 @@ export default function NewScheduleModal({
       return;
     }
 
-    if (!onCreateSong) {
-      alert('Função de criação de música indisponível.');
-      return;
-    }
+    if (!onCreateSong) return;
 
     try {
       setIsSavingQuickSong(true);
@@ -461,7 +450,7 @@ export default function NewScheduleModal({
             </button>
           </div>
 
-          {/* Título */}
+          {/* Título da Escala */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-300">Título da Escala *</label>
             <input
@@ -469,12 +458,12 @@ export default function NewScheduleModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ex: Culto de Celebração, Ensaio Geral..."
-              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+              placeholder="Ex: Culto de Celebração, Ensaio..."
+              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-11 sm:h-10 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
             />
           </div>
 
-          {/* Data */}
+          {/* Data com Botões Rápidos e Tratamento de iOS */}
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center justify-between gap-1.5">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
@@ -484,38 +473,50 @@ export default function NewScheduleModal({
                 <button
                   type="button"
                   onClick={() => handleSetQuickDate(4)}
-                  className="px-2 py-0.5 rounded-lg bg-slate-900 border border-church-border text-[10px] font-semibold text-slate-400 hover:text-church-blue hover:border-church-blue transition-colors cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 border border-church-border text-[11px] font-semibold text-slate-300 hover:text-church-blue hover:border-church-blue transition-colors cursor-pointer"
                 >
                   Quinta
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQuickDate(6)}
-                  className="px-2 py-0.5 rounded-lg bg-slate-900 border border-church-border text-[10px] font-semibold text-slate-400 hover:text-church-blue hover:border-church-blue transition-colors cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 border border-church-border text-[11px] font-semibold text-slate-300 hover:text-church-blue hover:border-church-blue transition-colors cursor-pointer"
                 >
                   Sábado
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSetQuickDate(0)}
-                  className="px-2 py-0.5 rounded-lg bg-slate-900 border border-church-border text-[10px] font-semibold text-slate-400 hover:text-church-blue hover:border-church-blue transition-colors cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 border border-church-border text-[11px] font-semibold text-slate-300 hover:text-church-blue hover:border-church-blue transition-colors cursor-pointer"
                 >
                   Domingo
                 </button>
               </div>
             </div>
 
-            <input
-              required
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2.5 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
-              style={{ colorScheme: 'dark' }}
-            />
+            {/* Input de Data com Altura Fixa e Ícone de Indicação */}
+            <div className="relative flex items-center">
+              <input
+                required
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-11 sm:h-10 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue cursor-pointer"
+                style={{
+                  colorScheme: 'dark',
+                  WebkitAppearance: 'none'
+                }}
+              />
+              {!date && (
+                <div className="absolute left-3.5 pointer-events-none flex items-center gap-2 text-slate-500 text-xs">
+                  <CalendarDays className="w-4 h-4 text-slate-500" />
+                  <span>Toque para selecionar a data</span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Horário */}
+          {/* Horário Unificado e Harmonizado */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-church-blue" /> Horário
@@ -527,7 +528,7 @@ export default function NewScheduleModal({
                   key={qt}
                   type="button"
                   onClick={() => setTime(qt)}
-                  className={`py-2 rounded-xl text-[11px] font-bold text-center transition-all ${
+                  className={`h-9 rounded-xl text-xs font-bold text-center transition-all cursor-pointer ${
                     time === qt
                       ? 'bg-church-blue text-white shadow-sm'
                       : 'bg-church-dark border border-church-border text-slate-400 hover:border-slate-700 hover:text-white'
@@ -538,13 +539,16 @@ export default function NewScheduleModal({
               ))}
             </div>
 
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="w-full max-w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-church-blue"
-              style={{ colorScheme: 'dark' }}
-            />
+            <div className="flex items-center gap-2 pt-0.5">
+              <span className="text-[11px] text-slate-400 whitespace-nowrap">Personalizado:</span>
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className="flex-1 box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-10 text-base sm:text-xs text-slate-200 focus:outline-none focus:border-church-blue"
+                style={{ colorScheme: 'dark' }}
+              />
+            </div>
           </div>
 
           {/* Observações */}
@@ -555,7 +559,7 @@ export default function NewScheduleModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ex: Passagem de som às 17h40. Vestimenta: tons escuros."
-              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-11 sm:h-10 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
             />
           </div>
 
@@ -578,13 +582,7 @@ export default function NewScheduleModal({
                     : 'bg-church-blue/15 hover:bg-church-blue text-church-blue hover:text-white border border-church-blue/30'
                 }`}
               >
-                {showQuickAddSong ? (
-                  <>Voltar ao Repertório</>
-                ) : (
-                  <>
-                    <Plus className="w-3.5 h-3.5" /> Cadastrar Nova Música
-                  </>
-                )}
+                {showQuickAddSong ? 'Voltar ao Repertório' : '+ Cadastrar Nova Música'}
               </button>
             </div>
 
@@ -594,11 +592,11 @@ export default function NewScheduleModal({
                   <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
                   {songAddedFeedback}
                 </span>
-                <span className="text-[10px] text-emerald-300/80">Pode buscar a próxima abaixo</span>
+                <span className="text-[10px] text-emerald-300/80">Pode buscar a próxima</span>
               </div>
             )}
 
-            {/* Painel 1: Cadastro Direto */}
+            {/* Painel 1: Cadastro Rápido de Música */}
             {showQuickAddSong ? (
               <div className="bg-church-dark p-3.5 rounded-2xl border border-church-blue/40 space-y-3 animate-in fade-in">
                 <div className="flex items-center justify-between">
@@ -614,15 +612,15 @@ export default function NewScheduleModal({
                     value={quickSearchTerm}
                     onChange={(e) => setQuickSearchTerm(e.target.value)}
                     placeholder="Digite o próximo louvor..."
-                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 h-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
                   />
                   <button
                     type="button"
                     onClick={handleQuickSearchTrack}
                     disabled={quickIsSearching || !quickSearchTerm.trim()}
-                    className="px-3 py-1.5 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl transition-all disabled:opacity-40 flex items-center gap-1 cursor-pointer flex-shrink-0"
+                    className="px-3.5 h-10 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl transition-all disabled:opacity-40 flex items-center gap-1 cursor-pointer flex-shrink-0"
                   >
-                    {quickIsSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+                    {quickIsSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
                     Buscar
                   </button>
                 </div>
@@ -658,14 +656,14 @@ export default function NewScheduleModal({
                     value={quickTitle}
                     onChange={(e) => setQuickTitle(e.target.value)}
                     placeholder="Título *"
-                    className="bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                    className="bg-church-card border border-church-border rounded-xl px-3 h-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
                   />
                   <input
                     type="text"
                     value={quickArtist}
                     onChange={(e) => setQuickArtist(e.target.value)}
                     placeholder="Artista / Versão *"
-                    className="bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                    className="bg-church-card border border-church-border rounded-xl px-3 h-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
                   />
                 </div>
 
@@ -673,7 +671,7 @@ export default function NewScheduleModal({
                   <select
                     value={quickKey}
                     onChange={(e) => setQuickKey(e.target.value)}
-                    className="bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-church-blue font-bold"
+                    className="bg-church-card border border-church-border rounded-xl px-3 h-10 text-xs text-white focus:outline-none focus:border-church-blue font-bold"
                   >
                     {COMMON_KEYS.map((k) => (
                       <option key={k} value={k}>Tom {k}</option>
@@ -684,7 +682,7 @@ export default function NewScheduleModal({
                     value={quickBpm}
                     onChange={(e) => setQuickBpm(e.target.value)}
                     placeholder="BPM (opcional)"
-                    className="bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                    className="bg-church-card border border-church-border rounded-xl px-3 h-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
                   />
                 </div>
 
@@ -694,14 +692,14 @@ export default function NewScheduleModal({
                     value={quickChords}
                     onChange={(e) => setQuickChords(e.target.value)}
                     placeholder="Link Cifra Club..."
-                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 h-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
                   />
                   <input
                     type="url"
                     value={quickYoutube}
                     onChange={(e) => setQuickYoutube(e.target.value)}
                     placeholder="Link YouTube..."
-                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                    className="flex-1 bg-church-card border border-church-border rounded-xl px-3 h-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
                   />
                 </div>
 
@@ -709,15 +707,15 @@ export default function NewScheduleModal({
                   type="button"
                   onClick={handleSaveAndAttachSong}
                   disabled={isSavingQuickSong || !quickTitle.trim() || !quickArtist.trim()}
-                  className="w-full py-2 bg-church-blue hover:bg-church-blue-hover disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-blue-600/30"
+                  className="w-full h-11 bg-church-blue hover:bg-church-blue-hover disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-blue-600/30"
                 >
                   {isSavingQuickSong ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5 stroke-[3]" />}
                   Salvar e Inserir na Escala
                 </button>
               </div>
             ) : (
-              /* Painel 2: Repertório Existente */
-              <div className="grid grid-cols-1 gap-2 bg-church-dark p-3 rounded-2xl border border-church-border">
+              /* Painel 2: Repertório Existente (Alinhamento perfeito de altura) */
+              <div className="space-y-2 bg-church-dark p-3 rounded-2xl border border-church-border">
                 <select
                   value={tempSongId}
                   onChange={(e) => {
@@ -726,7 +724,7 @@ export default function NewScheduleModal({
                     const found = songs.find(x => x.id === sId);
                     if (found) setTempSongKey(found.default_key || 'C');
                   }}
-                  className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+                  className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 h-11 sm:h-10 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
                 >
                   <option value="">Selecione a música do repertório...</option>
                   {songs.map((s) => (
@@ -736,11 +734,11 @@ export default function NewScheduleModal({
                   ))}
                 </select>
 
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <select
                     value={tempSongKey}
                     onChange={(e) => setTempSongKey(e.target.value)}
-                    className="w-28 box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue font-bold"
+                    className="w-32 box-border bg-church-card border border-church-border rounded-xl px-3 h-11 sm:h-10 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue font-bold flex-shrink-0"
                   >
                     <option value="">Tom...</option>
                     {COMMON_KEYS.map((k) => (
@@ -753,15 +751,15 @@ export default function NewScheduleModal({
                   <button
                     type="button"
                     onClick={handleAddExistingSong}
-                    className="flex-1 py-2 px-3 bg-church-blue hover:bg-church-blue-hover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-sm shadow-blue-600/20"
+                    className="flex-1 h-11 sm:h-10 px-4 bg-church-blue hover:bg-church-blue-hover text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-blue-600/20 whitespace-nowrap"
                   >
-                    <Plus className="w-3.5 h-3.5" /> Adicionar Louvor
+                    <Plus className="w-4 h-4 flex-shrink-0" /> Adicionar Louvor
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Músicas já adicionadas */}
+            {/* Lista de Músicas Inseridas */}
             {selectedSongs.length > 0 && (
               <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                 {selectedSongs.map((song, idx) => (
@@ -804,11 +802,11 @@ export default function NewScheduleModal({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-2 bg-church-dark p-3 rounded-2xl border border-church-border">
+            <div className="space-y-2 bg-church-dark p-3 rounded-2xl border border-church-border">
               <select
                 value={tempProfileId}
                 onChange={(e) => setTempProfileId(e.target.value)}
-                className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+                className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 h-11 sm:h-10 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
               >
                 <option value="">Selecione o voluntário...</option>
                 {profiles.map((p) => (
@@ -818,11 +816,11 @@ export default function NewScheduleModal({
                 ))}
               </select>
 
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
                 <select
                   value={tempRole}
                   onChange={(e) => setTempRole(e.target.value)}
-                  className="flex-1 min-w-0 box-border bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+                  className="flex-1 min-w-0 box-border bg-church-card border border-church-border rounded-xl px-3 h-11 sm:h-10 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
                 >
                   {SCHEDULE_ROLES.map((r) => (
                     <option key={r} value={r}>
@@ -834,9 +832,9 @@ export default function NewScheduleModal({
                 <button
                   type="button"
                   onClick={handleAddMember}
-                  className="py-2 px-3 bg-slate-900 hover:bg-church-blue text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer border border-church-border hover:border-church-blue flex-shrink-0"
+                  className="h-11 sm:h-10 px-4 bg-slate-900 hover:bg-church-blue text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-church-border hover:border-church-blue flex-shrink-0"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar
+                  <Plus className="w-4 h-4" /> Adicionar
                 </button>
               </div>
             </div>
@@ -868,12 +866,12 @@ export default function NewScheduleModal({
             )}
           </div>
 
-          {/* Rodapé */}
+          {/* Rodapé com Botões */}
           <div className="pt-3 border-t border-church-border flex items-center justify-end gap-2 flex-shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
+              className="px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
             >
               Cancelar
             </button>
