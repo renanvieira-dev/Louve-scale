@@ -7,7 +7,9 @@ import {
   Tag, 
   Search, 
   Loader2, 
-  ExternalLink 
+  Video, 
+  ExternalLink,
+  CheckCircle2
 } from 'lucide-react';
 
 const COMMON_KEYS = [
@@ -26,6 +28,8 @@ const KEY_MAP = {
 };
 
 const DEFAULT_TONES_MAP = {
+  'digno de tudo': 'D',
+  'te exaltamos': 'D',
   'e ele': 'E',
   'é ele': 'E',
   'tu es + e ele': 'E',
@@ -41,7 +45,8 @@ const DEFAULT_TONES_MAP = {
   'a casa e sua': 'A',
   'a casa é sua': 'A',
   'ruja o leao': 'C#m',
-  'ruja o leão': 'C#m'
+  'ruja o leão': 'C#m',
+  'liberta-me de mim': 'G'
 };
 
 export default function NewSongModal({ isOpen, onClose, onSave }) {
@@ -58,7 +63,6 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
   const [bpm, setBpm] = useState('');
   const [chordsUrl, setChordsUrl] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [tags, setTags] = useState('');
 
   if (!isOpen) return null;
 
@@ -86,7 +90,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     return 'G';
   };
 
-  // 1. Busca faixas e versões exatas
+  // 1. Busca faixas e versões exatas na biblioteca do iTunes
   const handleSearchVersions = async (e) => {
     e?.preventDefault();
     const query = searchTerm.trim();
@@ -115,7 +119,6 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             ? track.artworkUrl100.replace('100x100bb.jpg', '300x300bb.jpg')
             : '';
 
-          // Gerar link formatado do Cifra Club
           const cleanArtist = artistName
             .toLowerCase()
             .normalize('NFD')
@@ -130,7 +133,6 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             .replace(/[^a-z0-9]/g, '-')
             .replace(/-+/g, '-');
 
-          // Detectar tom
           const checkNormalized = trackTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           let estimatedKey = 'G';
           for (const [pattern, keyVal] of Object.entries(DEFAULT_TONES_MAP)) {
@@ -163,34 +165,30 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     }
   };
 
-  // 2. Ao clicar na versão exata, busca o ID do vídeo do YouTube para montar a URL direta
+  // 2. Ao selecionar uma versão, resolve o vídeo direto no player do YouTube
   const handleSelectVersion = async (item) => {
     setTitle(item.title);
     setArtist(item.artist);
     setChordsUrl(item.chordsUrl);
     setDefaultKey(normalizeDetectedKey(item.suggestedKey));
+    setSearchResults([]);
 
-    // Coloca inicialmente um fallback
-    const fallbackSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(item.title + ' ' + item.artist)}`;
-    setYoutubeUrl(fallbackSearchUrl);
+    setIsResolvingVideo(true);
+    const query = `${item.title} ${item.artist} oficial`.trim();
+    setYoutubeUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
 
-    // Busca o ID direto do vídeo no YouTube via endpoint público sem CORS
     try {
-      setIsResolvingVideo(true);
-      const queryVideo = `${item.title} ${item.artist} oficial`;
-      
-      const res = await fetch(`https://invidious.io.lol/api/v1/search?q=${encodeURIComponent(queryVideo)}&type=video`);
+      const res = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
       if (res.ok) {
         const data = await res.json();
-        if (data && data.length > 0 && data[0].videoId) {
-          setYoutubeUrl(`https://www.youtube.com/watch?v=${data[0].videoId}`);
+        if (data && data.url && data.url.includes('/watch?v=')) {
+          setYoutubeUrl(data.url);
         }
       }
-    } catch (e) {
-      console.warn('Fallback para busca de vídeo:', e);
+    } catch (err) {
+      console.warn('Erro ao resolver player direto:', err);
     } finally {
       setIsResolvingVideo(false);
-      setSearchResults([]);
     }
   };
 
@@ -207,8 +205,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
       default_key: defaultKey,
       bpm: bpm ? parseInt(bpm, 10) : null,
       chords_url: chordsUrl.trim() || null,
-      youtube_url: youtubeUrl.trim() || null,
-      tags: tags.trim() ? tags.split(',').map(t => t.trim()) : []
+      youtube_url: youtubeUrl.trim() || null
     });
 
     setSearchTerm('');
@@ -220,7 +217,6 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     setBpm('');
     setChordsUrl('');
     setYoutubeUrl('');
-    setTags('');
     onClose();
   };
 
@@ -248,13 +244,13 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
         {/* Corpo com Scroll */}
         <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
-          {/* BARRA DE PESQUISA */}
+          {/* Barra de Pesquisa */}
           <div className="bg-church-dark p-3.5 rounded-2xl border border-church-border space-y-2.5">
             <label className="text-xs font-bold text-white flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-church-blue" /> Buscar Música e Versões Oficiais
             </label>
             <p className="text-[11px] text-slate-400">
-              Digite o nome do louvor (ex: <i>É Ele</i>, <i>Bondade de Deus</i>, <i>Todavia Me Alegrarei</i>):
+              Digite o nome do louvor (ex: <i>Digno de Tudo Emaús</i>, <i>É Ele Drops</i>, <i>Bondade de Deus</i>):
             </p>
             
             <form onSubmit={handleSearchVersions} className="flex gap-2">
@@ -275,7 +271,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               </button>
             </form>
 
-            {/* LISTA DE RESULTADOS */}
+            {/* Lista de Resultados */}
             {searchResults.length > 0 && (
               <div className="pt-2 space-y-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -330,7 +326,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
             )}
           </div>
 
-          {/* FORMULÁRIO PREENCHIDO */}
+          {/* Formulário */}
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
             
             <div className="space-y-1">
@@ -340,7 +336,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: É Ele"
+                placeholder="Ex: Digno de Tudo + Te Exaltamos"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -352,7 +348,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={artist}
                 onChange={(e) => setArtist(e.target.value)}
-                placeholder="Ex: fhop music, Paulo e Rebeca & Emi Sousa"
+                placeholder="Ex: Emaús Music"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -414,16 +410,21 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               />
             </div>
 
-            {/* Link do Vídeo no YouTube com Indicador de Resolução */}
+            {/* Link Direto do Vídeo do YouTube */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-church-red" /> Vídeo Específico no YouTube
+                  <Video className="w-3.5 h-3.5 text-church-red" /> Vídeo Direto no YouTube
                 </label>
                 <div className="flex items-center gap-2">
                   {isResolvingVideo && (
-                    <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> Vinculando vídeo...
+                    <span className="text-[10px] text-amber-400 flex items-center gap-1 font-semibold animate-pulse">
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> Vinculando player direto...
+                    </span>
+                  )}
+                  {!isResolvingVideo && youtubeUrl && youtubeUrl.includes('/watch?v=') && (
+                    <span className="text-[10px] text-emerald-400 flex items-center gap-0.5 font-bold">
+                      <CheckCircle2 className="w-2.5 h-2.5" /> Player Vinculado
                     </span>
                   )}
                   {youtubeUrl && (
@@ -443,20 +444,6 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
                 placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
-              />
-            </div>
-
-            {/* Tags */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-slate-400" /> Tags / Categorias (separadas por vírgula)
-              </label>
-              <input
-                type="text"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="Ex: Adoração, Celebração, Ceia"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>

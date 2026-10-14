@@ -36,6 +36,8 @@ const COMMON_KEYS = [
 ];
 
 const DEFAULT_TONES_MAP = {
+  'digno de tudo': 'D',
+  'te exaltamos': 'D',
   'e ele': 'E',
   'é ele': 'E',
   'tu es + e ele': 'E',
@@ -51,7 +53,8 @@ const DEFAULT_TONES_MAP = {
   'a casa e sua': 'A',
   'a casa é sua': 'A',
   'ruja o leao': 'C#m',
-  'ruja o leão': 'C#m'
+  'ruja o leão': 'C#m',
+  'liberta-me de mim': 'G'
 };
 
 const QUICK_TIMES = ['09:00', '10:00', '18:00', '19:00', '19:30', '20:00'];
@@ -95,7 +98,6 @@ export default function NewScheduleModal({
   const [isSavingQuickSong, setIsSavingQuickSong] = useState(false);
   const [songAddedFeedback, setSongAddedFeedback] = useState('');
 
-  // Controle de abertura para evitar reset de dados em re-renders
   const prevIsOpenRef = useRef(false);
 
   useEffect(() => {
@@ -168,7 +170,6 @@ export default function NewScheduleModal({
     setDate(result.toISOString().split('T')[0]);
   };
 
-  // Voluntários
   const handleAddMember = () => {
     if (!tempProfileId) {
       alert('Selecione um voluntário.');
@@ -194,7 +195,6 @@ export default function NewScheduleModal({
     setSelectedMembers((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Músicas Existentes
   const handleAddExistingSong = () => {
     if (!tempSongId) {
       alert('Selecione uma música do repertório.');
@@ -225,7 +225,6 @@ export default function NewScheduleModal({
     setSelectedSongs((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Busca rápida de faixas no iTunes
   const handleQuickSearchTrack = async (e) => {
     e?.preventDefault();
     if (!quickSearchTerm.trim()) return;
@@ -246,8 +245,19 @@ export default function NewScheduleModal({
           const trackTitle = track.trackName;
           const artistName = track.artistName;
 
-          const cleanArtist = artistName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-          const cleanSong = trackTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+          const cleanArtist = artistName
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '-')
+            .replace(/-+/g, '-');
+
+          const cleanSong = trackTitle
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]/g, '-')
+            .replace(/-+/g, '-');
 
           let estimatedKey = 'G';
           const normTitle = trackTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -263,7 +273,6 @@ export default function NewScheduleModal({
             artist: artistName,
             thumbnail: track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb.jpg', '200x200bb.jpg') : '',
             chordsUrl: `https://www.cifraclub.com.br/${cleanArtist}/${cleanSong}/`,
-            youtubeUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(trackTitle + ' ' + artistName + ' oficial')}`,
             key: estimatedKey
           };
         });
@@ -276,16 +285,31 @@ export default function NewScheduleModal({
     }
   };
 
-  const handleSelectQuickTrack = (track) => {
+  // Ao selecionar a versão rápida, resolve o link exato do YouTube via API
+  const handleSelectQuickTrack = async (track) => {
     setQuickTitle(track.title);
     setQuickArtist(track.artist);
     setQuickChords(track.chordsUrl);
     setQuickKey(track.key || 'G');
-    setQuickYoutube(track.youtubeUrl);
     setQuickSearchResults([]);
+
+    const query = `${track.title} ${track.artist} oficial`.trim();
+    setQuickYoutube(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
+
+    try {
+      const res = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.url && data.url.includes('/watch?v=')) {
+          setQuickYoutube(data.url);
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao resolver player direto na escala:', err);
+    }
   };
 
-  // Salvar Nova Música e Inserir na Escala sem resetar os campos
+  // Salva e anexa a música mantendo o formulário ativo para a próxima
   const handleSaveAndAttachSong = async (e) => {
     e.preventDefault();
     if (!quickTitle.trim() || !quickArtist.trim()) {
