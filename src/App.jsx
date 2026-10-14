@@ -47,7 +47,6 @@ const AVAILABLE_ROLES = [
   'Técnico de Som'
 ];
 
-// Expurgar termos legados antigos
 const sanitizeRoles = (rolesList) => {
   if (!Array.isArray(rolesList)) return [];
   const deprecated = [
@@ -137,7 +136,6 @@ export default function App() {
           const pendingRoles = pendingRolesRaw ? JSON.parse(pendingRolesRaw) : null;
 
           if (!profile) {
-            // Primeiro cadastro real do usuário
             const googleName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0];
             const googleAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
             const initialRoles = pendingRoles && pendingRoles.length > 0 ? pendingRoles : ['Backing Vocal'];
@@ -155,10 +153,9 @@ export default function App() {
             setCurrentUser({ user: session.user, profile: newProfilePayload });
             triggerMobileNotification('Cadastro Concluído! 🎉', `Bem-vindo(a), ${googleName}! Seu perfil foi criado.`);
           } else {
-            // O usuário já existe no sistema: NÃO sobrescreve nada
             setCurrentUser({ user: session.user, profile });
             if (pendingRoles) {
-              triggerMobileNotification('Bem-vindo de volta! 👋', `Olá, ${profile.full_name}! Você já possui cadastro no LouveScale.`);
+              triggerMobileNotification('Bem-vindo de volta! 👋', `Olá, ${profile.full_name}! Você já possui cadastro.`);
             }
           }
 
@@ -193,7 +190,50 @@ export default function App() {
     };
   }, []);
 
-  // 2. Carregar dados do Supabase
+  // 2. Google One Tap: Puxa a conta do Google conectada no celular sem digitar senha
+  useEffect(() => {
+    if (currentUser || loading) return;
+
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!googleClientId) return;
+
+    const initializeGoogleOneTap = () => {
+      if (window.google?.accounts?.id) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: async (response) => {
+              try {
+                setGoogleLoading(true);
+                const { error } = await supabase.auth.signInWithIdToken({
+                  provider: 'google',
+                  token: response.credential
+                });
+                if (error) throw error;
+              } catch (err) {
+                console.error('Erro no login Google One Tap:', err);
+                setAuthError('Não foi possível autenticar com o Google One Tap.');
+              } finally {
+                setGoogleLoading(false);
+              }
+            },
+            auto_select: false,
+            cancel_on_tap_outside: true
+          });
+
+          // Dispara o prompt inferior no smartphone ("Continuar como...")
+          window.google.accounts.id.prompt();
+        } catch (e) {
+          console.warn('Google One Tap não pôde ser iniciado:', e);
+        }
+      }
+    };
+
+    const timer = setTimeout(initializeGoogleOneTap, 600);
+    return () => clearTimeout(timer);
+  }, [currentUser, loading]);
+
+  // 3. Carregar dados do Supabase
   const fetchData = async () => {
     try {
       const { data: profilesData } = await supabase
@@ -232,6 +272,7 @@ export default function App() {
     });
   };
 
+  // Login com Google pelo botão (com fallback nativo ou redirecionamento OAuth)
   const handleGoogleLogin = async () => {
     try {
       setGoogleLoading(true);
@@ -241,6 +282,21 @@ export default function App() {
         localStorage.setItem('louvescale_pending_roles', JSON.stringify(authSelectedRoles));
       }
 
+      // Tenta prompt nativo do Google se estiver inicializado
+      if (window.google?.accounts?.id && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            // Se o One Tap for ignorado no dispositivo, faz o fluxo padrão
+            supabase.auth.signInWithOAuth({
+              provider: 'google',
+              options: { redirectTo: window.location.origin }
+            });
+          }
+        });
+        return;
+      }
+
+      // Redirecionamento OAuth padrão
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -256,7 +312,7 @@ export default function App() {
     }
   };
 
-  // Submissão do Formulário de Autenticação com Validação de Duplicidade
+  // Submissão do Formulário de E-mail com Validação contra Duplicidade
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -275,7 +331,7 @@ export default function App() {
           throw error;
         }
       } else {
-        // TENTATIVA DE NOVO CADASTRO
+        // TENTATIVA DE CADASTRO
         const { data, error } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
@@ -288,7 +344,7 @@ export default function App() {
           }
         });
 
-        // 1. Checagem: Erro direto retornado pelo Supabase para e-mail já existente
+        // 1. Checagem: Erro direto para e-mail existente
         if (error) {
           const errMsg = error.message?.toLowerCase() || '';
           if (
@@ -304,7 +360,7 @@ export default function App() {
           throw error;
         }
 
-        // 2. Checagem: Proteção contra enumeração (identities vazio significa que o usuário já existe)
+        // 2. Checagem: identities vazio indica usuário já cadastrado
         if (data?.user?.identities && data.user.identities.length === 0) {
           setAuthError('Este e-mail já possui cadastro no LouveScale! Por favor, faça login com a sua senha.');
           setAuthMode('login');
@@ -312,7 +368,6 @@ export default function App() {
           return;
         }
 
-        // Se cadastrou com sucesso
         if (data.user) {
           await supabase.from('profiles').upsert({
             id: data.user.id,
@@ -321,7 +376,7 @@ export default function App() {
             instrument_role: authSelectedRoles[0] || 'Voluntário',
             role: 'member'
           });
-          triggerMobileNotification('Cadastro Concluído! 🎉', 'Bem-vindo ao LouveScale! Seu perfil foi criado com sucesso.');
+          triggerMobileNotification('Cadastro Concluído! 🎉', 'Bem-vindo ao LouveScale! Seu perfil foi criado.');
         }
       }
     } catch (err) {
@@ -683,6 +738,7 @@ export default function App() {
             </div>
           )}
 
+          {/* Botão Oficial Google (com suporte ao One Tap de 1 Toque) */}
           <button
             type="button"
             onClick={handleGoogleLogin}
