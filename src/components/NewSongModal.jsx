@@ -7,9 +7,7 @@ import {
   Search, 
   Loader2, 
   Video, 
-  ExternalLink,
-  CheckCircle2,
-  Sparkles
+  ExternalLink
 } from 'lucide-react';
 
 const COMMON_KEYS = [
@@ -34,7 +32,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
 
   if (!isOpen) return null;
 
-  // 1. Pesquisa de faixas e álbuns
+  // Busca versões no iTunes
   const handleSearchVersions = async (e) => {
     e?.preventDefault();
     const query = searchTerm.trim();
@@ -76,7 +74,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     }
   };
 
-  // 2. Ao selecionar uma versão, consulta as APIs servidoras (sem CORS)
+  // Ao selecionar a versão, consulta as APIs no servidor (sem CORS)
   const handleSelectVersion = async (item) => {
     setTitle(item.title);
     setArtist(item.artist);
@@ -85,7 +83,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
 
     const query = `${item.title} ${item.artist}`.trim();
 
-    // 2.1 Procurar Cifra e extrair o Tom real do HTML
+    // 1. Busca Cifra real e extrai o tom da página
     try {
       const chordsRes = await fetch(
         `/api/chords?title=${encodeURIComponent(item.title)}&artist=${encodeURIComponent(item.artist)}`
@@ -94,7 +92,6 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
         const chordsData = await chordsRes.json();
         if (chordsData.url) setChordsUrl(chordsData.url);
         if (chordsData.key) {
-          // Garante a correspondência com a lista de tons do seletor
           const matchedKey = COMMON_KEYS.find(
             (k) => k.toUpperCase() === chordsData.key.toUpperCase()
           );
@@ -106,12 +103,12 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
       setChordsUrl(`https://www.cifraclub.com.br/?q=${encodeURIComponent(query)}`);
     }
 
-    // 2.2 Procurar Vídeo direto no YouTube através da API interna
+    // 2. Busca o link do player direto no YouTube
     try {
       const ytRes = await fetch(`/api/youtube?q=${encodeURIComponent(query + ' oficial')}`);
       if (ytRes.ok) {
         const ytData = await ytRes.json();
-        if (ytData && ytData.url) {
+        if (ytData?.url) {
           setYoutubeUrl(ytData.url);
         }
       }
@@ -181,7 +178,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               <Search className="w-3.5 h-3.5 text-church-blue" /> Pesquisar Louvor ou Artista
             </label>
             <p className="text-[11px] text-slate-400">
-              Escreva o título (ex: <i>Ser Mudado Alessandro Vilas Boas</i>, <i>Digno de Tudo</i>):
+              Digite o nome do louvor (ex: <i>Te Louvarei Davi Sacer</i>, <i>Ser Mudado</i>):
             </p>
             
             <form onSubmit={handleSearchVersions} className="flex gap-2">
@@ -202,7 +199,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               </button>
             </form>
 
-            {/* Lista de Resultados */}
+            {/* Resultados da Pesquisa */}
             {searchResults.length > 0 && (
               <div className="pt-2 space-y-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -261,7 +258,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
           {isLoadingDetails && (
             <div className="p-3 rounded-2xl bg-blue-950/40 border border-church-blue/40 flex items-center gap-2.5 text-xs text-blue-300 animate-pulse">
               <Loader2 className="w-4 h-4 animate-spin text-church-blue flex-shrink-0" />
-              <span>A detetar tom original e a obter ligação direta do vídeo...</span>
+              <span>Detectando tom original e localizando a melhor cifra...</span>
             </div>
           )}
 
@@ -275,7 +272,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Ser Mudado"
+                placeholder="Ex: Te Louvarei"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -287,7 +284,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={artist}
                 onChange={(e) => setArtist(e.target.value)}
-                placeholder="Ex: Alessandro Vilas Boas"
+                placeholder="Ex: Davi Sacer"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -297,7 +294,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
                   <span>Tom Original</span>
                   <span className="text-[10px] font-black text-church-blue bg-blue-950/60 px-2 py-0.5 rounded border border-church-blue/30">
-                    {defaultKey}
+                    Tom {defaultKey}
                   </span>
                 </label>
                 <select
@@ -325,11 +322,11 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               </div>
             </div>
 
-            {/* Ligação da Cifra */}
+            {/* Link da Cifra */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-church-blue" /> Ligação da Cifra
+                  <LinkIcon className="w-3.5 h-3.5 text-church-blue" /> Link da Cifra
                 </label>
                 {chordsUrl && (
                   <a 
@@ -351,7 +348,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               />
             </div>
 
-            {/* Ligação Direta do Vídeo */}
+            {/* Link Direto do Vídeo */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
@@ -391,7 +388,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 className="px-5 py-2.5 bg-church-blue hover:bg-church-blue-hover text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-blue-600/30 cursor-pointer flex items-center gap-1.5"
               >
                 <Check className="w-4 h-4 stroke-[2.5]" />
-                Guardar Música
+                Salvar Música
               </button>
             </div>
 
