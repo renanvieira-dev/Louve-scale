@@ -25,14 +25,28 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
   // Campos do formulário
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
-  const [defaultKey, setDefaultKey] = useState('G');
+  const [defaultKey, setDefaultKey] = useState('E');
   const [bpm, setBpm] = useState('');
   const [chordsUrl, setChordsUrl] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
 
   if (!isOpen) return null;
 
-  // Busca versões no iTunes
+  // Limpa o nome do louvor para evitar slugs inválidos
+  const cleanSongTitle = (raw) => {
+    return (raw || '')
+      .replace(/\s*[\(\[](feat\.\vert{}ao vivo\vert{}live\vert{}acústico\vert{}acustico\vert{}clipe oficial\vert{}playback\vert{}vídeo oficial\vert{}video oficial).*?[\)\]]/gi, '')
+      .trim();
+  };
+
+  const cleanArtistName = (raw) => {
+    return (raw || '')
+      .split(/[,&/]|feat\./i)[0]
+      .replace(/\s*[\(\[].*?[\)\]]/g, '')
+      .trim();
+  };
+
+  // Pesquisa de faixas no iTunes
   const handleSearchVersions = async (e) => {
     e?.preventDefault();
     const query = searchTerm.trim();
@@ -74,19 +88,20 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     }
   };
 
-  // Ao selecionar a versão, consulta as APIs no servidor (sem CORS)
+  // Ao selecionar uma versão, consulta as rotas da API no servidor
   const handleSelectVersion = async (item) => {
-    setTitle(item.title);
-    setArtist(item.artist);
+    const sanitizedTitle = cleanSongTitle(item.title);
+    const sanitizedArtist = cleanArtistName(item.artist);
+
+    setTitle(sanitizedTitle || item.title);
+    setArtist(sanitizedArtist || item.artist);
     setSearchResults([]);
     setIsLoadingDetails(true);
 
-    const query = `${item.title} ${item.artist}`.trim();
-
-    // 1. Busca Cifra real e extrai o tom da página
+    // 1. Busca cifra e tom real
     try {
       const chordsRes = await fetch(
-        `/api/chords?title=${encodeURIComponent(item.title)}&artist=${encodeURIComponent(item.artist)}`
+        `/api/chords?title=${encodeURIComponent(sanitizedTitle)}&artist=${encodeURIComponent(sanitizedArtist)}`
       );
       if (chordsRes.ok) {
         const chordsData = await chordsRes.json();
@@ -99,13 +114,13 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
         }
       }
     } catch (err) {
-      console.warn('Erro ao obter cifra/tom:', err);
-      setChordsUrl(`https://www.cifraclub.com.br/?q=${encodeURIComponent(query)}`);
+      console.warn('Erro em /api/chords:', err);
+      setChordsUrl(`https://www.cifraclub.com.br/?q=${encodeURIComponent(`${sanitizedTitle}${sanitizedArtist}`)}`);
     }
 
-    // 2. Busca o link do player direto no YouTube
+    // 2. Busca leitor direto do YouTube
     try {
-      const ytRes = await fetch(`/api/youtube?q=${encodeURIComponent(query + ' oficial')}`);
+      const ytRes = await fetch(`/api/youtube?q=${encodeURIComponent(`${sanitizedTitle}${sanitizedArtist}`)}`);
       if (ytRes.ok) {
         const ytData = await ytRes.json();
         if (ytData?.url) {
@@ -113,8 +128,8 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
         }
       }
     } catch (err) {
-      console.warn('Erro ao resolver leitor do YouTube:', err);
-      setYoutubeUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query + ' oficial')}`);
+      console.warn('Erro em /api/youtube:', err);
+      setYoutubeUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(`${sanitizedTitle}${sanitizedArtist} oficial`)}`);
     } finally {
       setIsLoadingDetails(false);
     }
@@ -141,7 +156,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     setHasSearched(false);
     setTitle('');
     setArtist('');
-    setDefaultKey('G');
+    setDefaultKey('E');
     setBpm('');
     setChordsUrl('');
     setYoutubeUrl('');
@@ -178,7 +193,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
               <Search className="w-3.5 h-3.5 text-church-blue" /> Pesquisar Louvor ou Artista
             </label>
             <p className="text-[11px] text-slate-400">
-              Digite o nome do louvor (ex: <i>Te Louvarei Davi Sacer</i>, <i>Ser Mudado</i>):
+              Digite o nome do louvor (ex: <i>Seja o Centro</i>, <i>Te Louvarei</i>):
             </p>
             
             <form onSubmit={handleSearchVersions} className="flex gap-2">
@@ -272,7 +287,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Te Louvarei"
+                placeholder="Ex: Seja o Centro"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
@@ -284,7 +299,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
                 type="text"
                 value={artist}
                 onChange={(e) => setArtist(e.target.value)}
-                placeholder="Ex: Davi Sacer"
+                placeholder="Ex: Som do Céu"
                 className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
