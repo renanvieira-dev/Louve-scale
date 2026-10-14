@@ -31,7 +31,9 @@ import {
   Clock, 
   CalendarPlus, 
   SlidersHorizontal,
-  X
+  X,
+  Bell,
+  Sparkles
 } from 'lucide-react';
 
 const AVAILABLE_ROLES = [
@@ -46,7 +48,7 @@ const AVAILABLE_ROLES = [
   'Técnico de Som'
 ];
 
-// Sanitizar termos legados antigos
+// Expurgar termos legados antigos
 const sanitizeRoles = (rolesList) => {
   if (!Array.isArray(rolesList)) return [];
   const deprecated = [
@@ -80,6 +82,9 @@ export default function App() {
   const [memberSelectedRoles, setMemberSelectedRoles] = useState([]);
   const [isSavingMemberRoles, setIsSavingMemberRoles] = useState(false);
 
+  // Notificações no Celular / Dispositivo
+  const [mobileNotice, setMobileNotice] = useState(null);
+
   // Autenticação
   const [authMode, setAuthMode] = useState('login');
   const [authEmail, setAuthEmail] = useState('');
@@ -89,6 +94,35 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Solicitar permissão de notificação nativa do celular ao abrir
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Disparador de Notificação (Nativa + Banner Flutuante no Celular)
+  const triggerMobileNotification = (title, message) => {
+    // 1. Notificação nativa do celular (Push)
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification(title, {
+          body: message,
+          icon: '/favicon.ico',
+          badge: '/favicon.ico'
+        });
+      } catch (err) {
+        console.warn('Falha na notificação nativa:', err);
+      }
+    }
+
+    // 2. Banner animado estilo iOS no topo da tela do celular
+    setMobileNotice({ title, message });
+    setTimeout(() => {
+      setMobileNotice(null);
+    }, 5000);
+  };
 
   // 1. Checagem de Sessão
   useEffect(() => {
@@ -277,13 +311,23 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  // Salvar Escala
+  // Salvar Escala com Notificação no Celular
   const handleSaveSchedule = async (schedulePayload, scheduleId) => {
     try {
+      const creatorName = currentUser?.profile?.full_name || 'Admin';
+
       if (scheduleId) {
         await schedulesService.updateSchedule(scheduleId, schedulePayload);
+        triggerMobileNotification(
+          'Escala Atualizada! 📅',
+          `A escala "${schedulePayload.title}" foi editada por ${creatorName}.`
+        );
       } else {
         await schedulesService.createSchedule(schedulePayload);
+        triggerMobileNotification(
+          'Nova Escala Criada! 📅',
+          `"${schedulePayload.title}" foi criada por ${creatorName}. Verifique seu horário e repertório!`
+        );
       }
 
       await fetchData();
@@ -312,7 +356,7 @@ export default function App() {
     setIsScheduleModalOpen(true);
   };
 
-  // Salvar Música
+  // Salvar Música com Notificação no Celular
   const handleSaveSong = async (songPayload) => {
     try {
       const cleanPayload = {
@@ -334,6 +378,12 @@ export default function App() {
         .single();
 
       if (error) throw error;
+
+      const creatorName = currentUser?.profile?.full_name || 'Membro do Louvor';
+      triggerMobileNotification(
+        'Novo Louvor Adicionado! 🎵',
+        `"${cleanPayload.title}" (${cleanPayload.artist}) adicionada por ${creatorName}. Tom ${cleanPayload.default_key}.`
+      );
 
       await fetchData();
       setIsSongModalOpen(false);
@@ -712,7 +762,33 @@ export default function App() {
   // ==========================================
   return (
     <div className="min-h-screen bg-church-dark text-church-silver flex flex-col items-center antialiased selection:bg-church-blue selection:text-white">
-      {/* pt-12 sm:pt-6 garante que o topo nunca colida com a barra de status do celular */}
+      
+      {/* BANNER FLUTUANTE DE NOTIFICAÇÃO NO CELULAR (ESTILO iOS PUSH) */}
+      {mobileNotice && (
+        <div className="fixed top-3 left-4 right-4 z-50 max-w-md mx-auto bg-slate-900/95 backdrop-blur-xl border border-church-blue/50 p-3.5 rounded-2xl shadow-2xl shadow-black/80 flex items-start gap-3 animate-in slide-in-from-top-4 duration-300">
+          <div className="w-8 h-8 rounded-xl bg-church-blue text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-600/40">
+            <Bell className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <h4 className="text-xs font-black text-white truncate">{mobileNotice.title}</h4>
+              <span className="text-[10px] text-church-blue font-bold">Agora</span>
+            </div>
+            <p className="text-[11px] text-slate-300 mt-0.5 leading-snug break-words">
+              {mobileNotice.message}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMobileNotice(null)}
+            className="text-slate-500 hover:text-white p-1"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* pt-12 sm:pt-6 garante que o topo nunca colida com o relógio do celular */}
       <div className="w-full max-w-7xl min-h-screen flex flex-col px-4 sm:px-8 lg:px-12 pt-12 sm:pt-6 pb-24">
         
         {/* Header LouveScale */}
@@ -952,7 +1028,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 3: MÚSICAS (RESPONSIVA) */}
+          {/* ABA 3: MÚSICAS */}
           {activeTab === 'songs' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1048,7 +1124,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 4: VOLUNTÁRIOS (COM GESTÃO DE FUNÇÕES) */}
+          {/* ABA 4: VOLUNTÁRIOS */}
           {activeTab === 'members' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1157,10 +1233,9 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* BOTÕES DE GESTÃO DO ADMIN (FUNÇÕES + TORNAR/REMOVER ADMIN) */}
+                        {/* BOTÕES DE GESTÃO DO ADMIN */}
                         {isCurrentUserAdmin && (
                           <div className="pt-3 border-t border-church-border grid grid-cols-2 gap-2">
-                            {/* Botão de Funções */}
                             <button
                               type="button"
                               onClick={() => handleOpenEditMemberRoles(member)}
@@ -1170,7 +1245,6 @@ export default function App() {
                               <span>Funções</span>
                             </button>
 
-                            {/* Botão de Permissão Admin */}
                             <button
                               type="button"
                               onClick={() => handleToggleAdmin(member.id, member.role)}
