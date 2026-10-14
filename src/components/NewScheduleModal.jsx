@@ -289,26 +289,34 @@ export default function NewScheduleModal({
   const handleSelectQuickTrack = async (track) => {
     setQuickTitle(track.title);
     setQuickArtist(track.artist);
-    setQuickChords(track.chordsUrl);
-    setQuickKey(track.key || 'G');
     setQuickSearchResults([]);
 
-    const query = `${track.title} ${track.artist} oficial`.trim();
+    const queryText = `${track.title} ${track.artist}`.trim();
 
+    // 1. Puxar Cifra Real e Tom Real
     try {
-      const res = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.url && data.url.includes('/watch?v=')) {
-          setQuickYoutube(data.url);
-          return;
-        }
+      const chordsRes = await fetch(`/api/chords?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
+      if (chordsRes.ok) {
+        const chordsData = await chordsRes.json();
+        if (chordsData.url) setQuickChords(chordsData.url);
+        if (chordsData.key) setQuickKey(chordsData.key);
       }
-    } catch (err) {
-      console.warn('Falha ao resolver player direto na escala:', err);
+    } catch (e) {
+      setQuickChords(`https://www.cifraclub.com.br/?q=${encodeURIComponent(queryText)}`);
     }
 
-    setQuickYoutube(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
+    // 2. Puxar Vídeo Direto
+    try {
+      const ytRes = await fetch(`/api/youtube?q=${encodeURIComponent(queryText + ' oficial')}`);
+      if (ytRes.ok) {
+        const ytData = await ytRes.json();
+        if (ytData && ytData.url) {
+          setQuickYoutube(ytData.url);
+        }
+      }
+    } catch (e) {
+      setQuickYoutube(`https://www.youtube.com/results?search_query=${encodeURIComponent(queryText + ' oficial')}`);
+    }
   };
 
   // Salva e anexa a música mantendo o formulário ativo para a próxima

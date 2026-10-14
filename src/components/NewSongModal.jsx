@@ -165,35 +165,45 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
     }
   };
 
-  // 2. Ao selecionar uma versão, resolve o vídeo direto no player do YouTube
-  // Ao selecionar uma versão, busca e injeta o link direto do player
+  // Ao selecionar uma versão da música:
   const handleSelectVersion = async (item) => {
     setTitle(item.title);
     setArtist(item.artist);
-    setChordsUrl(item.chordsUrl);
-    setDefaultKey(normalizeDetectedKey(item.suggestedKey));
     setSearchResults([]);
 
+    // 1. Iniciar resolução paralela de Vídeo e Cifra/Tom
     setIsResolvingVideo(true);
-    const query = `${item.title} ${item.artist} oficial`.trim();
 
+    const queryText = `${item.title} ${item.artist}`.trim();
+
+    // Busca Cifra e Tom reais
     try {
-      const res = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.url && data.url.includes('/watch?v=')) {
-          setYoutubeUrl(data.url);
-          return;
+      const chordsRes = await fetch(`/api/chords?title=${encodeURIComponent(item.title)}&artist=${encodeURIComponent(item.artist)}`);
+      if (chordsRes.ok) {
+        const chordsData = await chordsRes.json();
+        if (chordsData.url) setChordsUrl(chordsData.url);
+        if (chordsData.key) setDefaultKey(normalizeDetectedKey(chordsData.key));
+      }
+    } catch (err) {
+      console.warn('Erro ao obter cifra/tom:', err);
+      setChordsUrl(`https://www.cifraclub.com.br/?q=${encodeURIComponent(queryText)}`);
+    }
+
+    // Busca Vídeo no YouTube com player direto
+    try {
+      const ytRes = await fetch(`/api/youtube?q=${encodeURIComponent(queryText + ' oficial')}`);
+      if (ytRes.ok) {
+        const ytData = await ytRes.json();
+        if (ytData && ytData.url) {
+          setYoutubeUrl(ytData.url);
         }
       }
     } catch (err) {
-      console.warn('Falha ao resolver vídeo direto:', err);
+      console.warn('Erro ao resolver vídeo:', err);
+      setYoutubeUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(queryText + ' oficial')}`);
     } finally {
       setIsResolvingVideo(false);
     }
-
-    // Apenas se a resolução falhar, usa a busca geral como último recurso
-    setYoutubeUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
   };
 
   const handleSubmit = (e) => {
