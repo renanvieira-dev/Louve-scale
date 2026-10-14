@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, 
   Calendar, 
@@ -14,7 +14,8 @@ import {
   Search,
   Loader2,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  CheckCircle2
 } from 'lucide-react';
 
 const SCHEDULE_ROLES = [
@@ -92,56 +93,66 @@ export default function NewScheduleModal({
   const [quickYoutube, setQuickYoutube] = useState('');
   const [quickBpm, setQuickBpm] = useState('');
   const [isSavingQuickSong, setIsSavingQuickSong] = useState(false);
+  const [songAddedFeedback, setSongAddedFeedback] = useState('');
+
+  // Referência para controlar inicialização apenas ao abrir o modal
+  const prevIsOpenRef = useRef(false);
 
   useEffect(() => {
-    if (scheduleToEdit) {
-      setTitle(scheduleToEdit.title || 'Culto de Celebração');
-      setType(scheduleToEdit.type || 'service');
-      setNotes(scheduleToEdit.notes || '');
+    // SÓ reinicia os campos quando o modal transita de fechado para aberto
+    if (isOpen && !prevIsOpenRef.current) {
+      if (scheduleToEdit) {
+        setTitle(scheduleToEdit.title || 'Culto de Celebração');
+        setType(scheduleToEdit.type || 'service');
+        setNotes(scheduleToEdit.notes || '');
 
-      if (scheduleToEdit.event_date) {
-        const d = new Date(scheduleToEdit.event_date);
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const dd = String(d.getDate()).padStart(2, '0');
-        setDate(`${yyyy}-${mm}-${dd}`);
+        if (scheduleToEdit.event_date) {
+          const d = new Date(scheduleToEdit.event_date);
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          setDate(`${yyyy}-${mm}-${dd}`);
 
-        const hh = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        setTime(`${hh}:${min}`);
+          const hh = String(d.getHours()).padStart(2, '0');
+          const min = String(d.getMinutes()).padStart(2, '0');
+          setTime(`${hh}:${min}`);
+        }
+
+        if (scheduleToEdit.schedule_members) {
+          setSelectedMembers(
+            scheduleToEdit.schedule_members.map((m) => ({
+              profile_id: m.profile_id,
+              full_name: m.profile?.full_name || profiles.find(p => p.id === m.profile_id)?.full_name || 'Voluntário',
+              role_in_schedule: m.role || 'Voluntário'
+            }))
+          );
+        }
+
+        if (scheduleToEdit.schedule_songs) {
+          setSelectedSongs(
+            scheduleToEdit.schedule_songs.map((s) => ({
+              song_id: s.song_id,
+              title: s.song?.title || songs.find(x => x.id === s.song_id)?.title || 'Louvor',
+              artist: s.song?.artist || songs.find(x => x.id === s.song_id)?.artist || '',
+              custom_key: s.custom_key || s.song?.default_key || 'C'
+            }))
+          );
+        }
+      } else {
+        setTitle('Culto de Celebração');
+        setType('service');
+        setDate('');
+        setTime('19:00');
+        setNotes('');
+        setSelectedMembers([]);
+        setSelectedSongs([]);
       }
-
-      if (scheduleToEdit.schedule_members) {
-        setSelectedMembers(
-          scheduleToEdit.schedule_members.map((m) => ({
-            profile_id: m.profile_id,
-            full_name: m.profile?.full_name || profiles.find(p => p.id === m.profile_id)?.full_name || 'Voluntário',
-            role_in_schedule: m.role || 'Voluntário'
-          }))
-        );
-      }
-
-      if (scheduleToEdit.schedule_songs) {
-        setSelectedSongs(
-          scheduleToEdit.schedule_songs.map((s) => ({
-            song_id: s.song_id,
-            title: s.song?.title || songs.find(x => x.id === s.song_id)?.title || 'Louvor',
-            artist: s.song?.artist || songs.find(x => x.id === s.song_id)?.artist || '',
-            custom_key: s.custom_key || s.song?.default_key || 'C'
-          }))
-        );
-      }
-    } else {
-      setTitle('Culto de Celebração');
-      setType('service');
-      setDate('');
-      setTime('19:00');
-      setNotes('');
-      setSelectedMembers([]);
-      setSelectedSongs([]);
+      setShowQuickAddSong(false);
+      setSongAddedFeedback('');
     }
-    setShowQuickAddSong(false);
-  }, [scheduleToEdit, isOpen, profiles, songs]);
+
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, scheduleToEdit]);
 
   if (!isOpen) return null;
 
@@ -211,7 +222,7 @@ export default function NewScheduleModal({
     setSelectedSongs((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Busca de Músicas
+  // Busca rápida de louvores
   const handleQuickSearchTrack = async (e) => {
     e?.preventDefault();
     if (!quickSearchTerm.trim()) return;
@@ -219,6 +230,7 @@ export default function NewScheduleModal({
     try {
       setQuickIsSearching(true);
       setQuickSearchResults([]);
+      setSongAddedFeedback('');
 
       const response = await fetch(
         `https://itunes.apple.com/search?term=${encodeURIComponent(quickSearchTerm.trim())}&entity=song&limit=6&country=BR`
@@ -270,7 +282,7 @@ export default function NewScheduleModal({
     setQuickSearchResults([]);
   };
 
-  // Salvar Nova Música e Inserir na Escala
+  // Salvar Nova Música sem resetar as informações da escala
   const handleSaveAndAttachSong = async (e) => {
     e.preventDefault();
     if (!quickTitle.trim() || !quickArtist.trim()) {
@@ -301,11 +313,13 @@ export default function NewScheduleModal({
             song_id: newSong.id,
             title: newSong.title,
             artist: newSong.artist,
-            custom_key: newSong.default_key || 'C'
+            custom_key: newSong.default_key || quickKey || 'C'
           }
         ]);
+        setSongAddedFeedback(`"${newSong.title}" adicionada com sucesso!`);
       }
 
+      // Limpa APENAS os campos da música adicionada para permitir buscar e adicionar a próxima
       setQuickTitle('');
       setQuickArtist('');
       setQuickChords('');
@@ -313,7 +327,6 @@ export default function NewScheduleModal({
       setQuickBpm('');
       setQuickSearchTerm('');
       setQuickSearchResults([]);
-      setShowQuickAddSong(false);
     } catch (err) {
       console.error('Erro ao adicionar música na escala:', err);
     } finally {
@@ -375,7 +388,7 @@ export default function NewScheduleModal({
           </button>
         </div>
 
-        {/* Formulário */}
+        {/* Formulário com Scroll */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
           {/* Tipo de Evento */}
@@ -517,7 +530,10 @@ export default function NewScheduleModal({
 
               <button
                 type="button"
-                onClick={() => setShowQuickAddSong(!showQuickAddSong)}
+                onClick={() => {
+                  setShowQuickAddSong(!showQuickAddSong);
+                  setSongAddedFeedback('');
+                }}
                 className={`text-[11px] font-bold px-2.5 py-1 rounded-xl transition-all cursor-pointer flex items-center gap-1 ${
                   showQuickAddSong
                     ? 'bg-church-dark text-slate-300 border border-church-border'
@@ -534,6 +550,17 @@ export default function NewScheduleModal({
               </button>
             </div>
 
+            {/* Feedback quando uma música acabou de ser inserida */}
+            {songAddedFeedback && (
+              <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-xs flex items-center justify-between animate-in fade-in">
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  {songAddedFeedback}
+                </span>
+                <span className="text-[10px] text-emerald-300/80">Pode buscar a próxima abaixo</span>
+              </div>
+            )}
+
             {/* Painel 1: Cadastro Direto */}
             {showQuickAddSong ? (
               <div className="bg-church-dark p-3.5 rounded-2xl border border-church-blue/40 space-y-3 animate-in fade-in">
@@ -549,7 +576,7 @@ export default function NewScheduleModal({
                     type="text"
                     value={quickSearchTerm}
                     onChange={(e) => setQuickSearchTerm(e.target.value)}
-                    placeholder="Digite o louvor (ex: É Ele Drops)..."
+                    placeholder="Digite o próximo louvor (ex: Bondade de Deus)..."
                     className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
                   />
                   <button
@@ -697,9 +724,9 @@ export default function NewScheduleModal({
               </div>
             )}
 
-            {/* Músicas já adicionadas */}
+            {/* Lista das músicas já inseridas na escala */}
             {selectedSongs.length > 0 && (
-              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                 {selectedSongs.map((song, idx) => (
                   <div
                     key={idx}
