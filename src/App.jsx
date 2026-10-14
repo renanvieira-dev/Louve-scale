@@ -47,6 +47,19 @@ const AVAILABLE_ROLES = [
   'Técnico de Som'
 ];
 
+// Remove termos legados que não devem mais aparecer na interface
+const sanitizeRoles = (rolesList) => {
+  if (!Array.isArray(rolesList)) return [];
+  const deprecated = [
+    'Vocal / Ministro(a)', 
+    'Vocal/Ministro', 
+    'Voz/Ministro', 
+    'Vocal / Ministro',
+    'Voz / Ministro(a)'
+  ];
+  return Array.from(new Set(rolesList.filter((r) => !deprecated.includes(r))));
+};
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -67,9 +80,6 @@ export default function App() {
   const [editingMemberRoles, setEditingMemberRoles] = useState(null);
   const [memberSelectedRoles, setMemberSelectedRoles] = useState([]);
   const [isSavingMemberRoles, setIsSavingMemberRoles] = useState(false);
-
-  // Modal de primeiro acesso para definir funções (caso logue no Google sem escolher antes)
-  const [showRoleSetupModal, setShowRoleSetupModal] = useState(false);
 
   // Estados de Autenticação
   const [authMode, setAuthMode] = useState('login');
@@ -93,15 +103,13 @@ export default function App() {
             .eq('id', session.user.id)
             .single();
 
-          // Resgata funções previamente escolhidas antes do redirecionamento do Google
           const pendingRolesRaw = localStorage.getItem('louvescale_pending_roles');
           const pendingRoles = pendingRolesRaw ? JSON.parse(pendingRolesRaw) : null;
 
           if (!profile) {
-            // Perfil novo criado via Google
             const googleName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0];
             const googleAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
-            const initialRoles = pendingRoles && pendingRoles.length > 0 ? pendingRoles : [];
+            const initialRoles = pendingRoles && pendingRoles.length > 0 ? pendingRoles : ['Backing Vocal'];
 
             const newProfilePayload = {
               id: session.user.id,
@@ -114,12 +122,7 @@ export default function App() {
 
             await supabase.from('profiles').upsert(newProfilePayload);
             setCurrentUser({ user: session.user, profile: newProfilePayload });
-
-            if (initialRoles.length === 0) {
-              setShowRoleSetupModal(true);
-            }
           } else {
-            // Perfil já existente: se havia funções pendentes salvas no registro, atualiza
             if (pendingRoles && pendingRoles.length > 0 && (!profile.roles || profile.roles.length === 0)) {
               await supabase.from('profiles').update({
                 roles: pendingRoles,
@@ -190,7 +193,6 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Alternar funções no cadastro inicial
   const toggleAuthRole = (roleName) => {
     setAuthSelectedRoles((prev) => {
       if (prev.includes(roleName)) {
@@ -202,13 +204,11 @@ export default function App() {
     });
   };
 
-  // Login com Conta Google salvando as funções escolhidas
   const handleGoogleLogin = async () => {
     try {
       setGoogleLoading(true);
       setAuthError('');
 
-      // Se estiver no modo cadastro ("Novo Membro"), memoriza as funções selecionadas
       if (authMode === 'register' && authSelectedRoles.length > 0) {
         localStorage.setItem('louvescale_pending_roles', JSON.stringify(authSelectedRoles));
       }
@@ -228,7 +228,6 @@ export default function App() {
     }
   };
 
-  // Cadastro e Login com E-mail e Senha
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -283,43 +282,7 @@ export default function App() {
   const handleSaveSchedule = async (schedulePayload, scheduleId) => {
     try {
       if (scheduleId) {
-        if (typeof schedulesService.updateSchedule === 'function') {
-          await schedulesService.updateSchedule(scheduleId, schedulePayload);
-        } else {
-          const { error: updErr } = await supabase
-            .from('schedules')
-            .update({
-              title: schedulePayload.title,
-              type: schedulePayload.type,
-              event_date: schedulePayload.event_date,
-              notes: schedulePayload.notes
-            })
-            .eq('id', scheduleId);
-
-          if (updErr) throw updErr;
-
-          await supabase.from('schedule_members').delete().eq('schedule_id', scheduleId);
-          if (schedulePayload.members?.length > 0) {
-            const mems = schedulePayload.members.map(m => ({
-              schedule_id: scheduleId,
-              profile_id: m.profile_id,
-              role: m.role,
-              status: m.status || 'pending'
-            }));
-            await supabase.from('schedule_members').insert(mems);
-          }
-
-          await supabase.from('schedule_songs').delete().eq('schedule_id', scheduleId);
-          if (schedulePayload.songs?.length > 0) {
-            const sngs = schedulePayload.songs.map((s, idx) => ({
-              schedule_id: scheduleId,
-              song_id: s.song_id,
-              custom_key: s.custom_key,
-              order_index: s.order_index || idx + 1
-            }));
-            await supabase.from('schedule_songs').insert(sngs);
-          }
-        }
+        await schedulesService.updateSchedule(scheduleId, schedulePayload);
       } else {
         await schedulesService.createSchedule(schedulePayload);
       }
@@ -350,7 +313,7 @@ export default function App() {
     setIsScheduleModalOpen(true);
   };
 
-  // Salvar Música Sanitizada
+  // Salvar Música Sanitizada (sem coluna tags para não causar erro 400 no Supabase)
   const handleSaveSong = async (songPayload) => {
     try {
       const cleanPayload = {
@@ -433,12 +396,14 @@ export default function App() {
 
   // Abrir modal para o Admin gerenciar as funções de um voluntário
   const handleOpenEditMemberRoles = (member) => {
-    const currentRoles = Array.isArray(member.roles) && member.roles.length > 0
-      ? [...member.roles]
+    const rawRoles = Array.isArray(member.roles) && member.roles.length > 0
+      ? member.roles
       : (member.instrument_role ? [member.instrument_role] : ['Voluntário']);
 
+    const cleanedRoles = sanitizeRoles(rawRoles);
+
     setEditingMemberRoles(member);
-    setMemberSelectedRoles(currentRoles);
+    setMemberSelectedRoles(cleanedRoles.length > 0 ? cleanedRoles : ['Ministro(a) de Louvor']);
   };
 
   // Salvar as funções alteradas pelo Admin no Supabase
@@ -463,7 +428,6 @@ export default function App() {
 
       if (error) throw error;
 
-      // Atualiza lista local
       setProfiles((prev) =>
         prev.map((p) =>
           p.id === editingMemberRoles.id
@@ -472,7 +436,6 @@ export default function App() {
         )
       );
 
-      // Se editou a si mesmo
       if (editingMemberRoles.id === currentUser?.user?.id) {
         setCurrentUser((prev) => ({
           ...prev,
@@ -559,7 +522,7 @@ export default function App() {
   }
 
   // ==========================================
-  // TELA DE LOGIN / REGISTRO COM SELEÇÃO DE FUNÇÕES E GOOGLE
+  // TELA DE LOGIN / REGISTRO
   // ==========================================
   if (!currentUser) {
     return (
@@ -576,7 +539,6 @@ export default function App() {
             </p>
           </div>
 
-          {/* Abas Entrar / Novo Membro */}
           <div className="grid grid-cols-2 p-1 bg-church-dark border border-church-border rounded-2xl gap-1">
             <button
               type="button"
@@ -608,7 +570,6 @@ export default function App() {
             </div>
           )}
 
-          {/* NO MODO NOVO MEMBRO: SELEÇÃO DAS FUNÇÕES ANTES DO CADASTRO */}
           {authMode === 'register' && (
             <div className="space-y-2 p-3 bg-church-dark rounded-2xl border border-church-border animate-in fade-in">
               <div className="flex items-center justify-between">
@@ -646,7 +607,6 @@ export default function App() {
             </div>
           )}
 
-          {/* BOTÃO CONTA GOOGLE (JÁ GRAVA AS FUNÇÕES ESCOLHIDAS ACIMA) */}
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -885,6 +845,8 @@ export default function App() {
                               <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                                 {scheduleSongs.map((ss, idx) => {
                                   const songData = ss.song || songs.find(x => x.id === ss.song_id);
+                                  const keyToShow = ss.song_key || ss.custom_key || songData?.default_key || 'C';
+
                                   return (
                                     <div 
                                       key={idx} 
@@ -904,7 +866,7 @@ export default function App() {
 
                                       <div className="flex items-center gap-2 flex-shrink-0">
                                         <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-blue-950/60 border border-church-blue/30 text-blue-400">
-                                          Tom {ss.custom_key || songData?.default_key || 'C'}
+                                          Tom {keyToShow}
                                         </span>
                                         {songData?.chords_url && (
                                           <a 
@@ -964,7 +926,7 @@ export default function App() {
 
                         </div>
 
-                        {/* Sincronização Google Agenda */}
+                        {/* Google Agenda */}
                         <div className="pt-3 border-t border-church-border">
                           <a
                             href={generateGoogleCalendarUrl({
@@ -1086,7 +1048,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 4: VOLUNTÁRIOS (COM GESTÃO DE FUNÇÕES PELO ADMIN) */}
+          {/* ABA 4: VOLUNTÁRIOS */}
           {activeTab === 'members' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1113,9 +1075,10 @@ export default function App() {
                   {filteredMembers.map((member) => {
                     const isMe = member.id === currentUser?.user?.id;
                     const isAdmin = member.role === 'admin';
-                    const memberRoles = Array.isArray(member.roles) && member.roles.length > 0 
+                    const rawRoles = Array.isArray(member.roles) && member.roles.length > 0 
                       ? member.roles 
                       : [member.instrument_role || 'Voluntário'];
+                    const memberRoles = sanitizeRoles(rawRoles);
 
                     return (
                       <div 
@@ -1157,7 +1120,6 @@ export default function App() {
                                 )}
                               </div>
 
-                              {/* Badges de Instrumentos */}
                               <div className="flex flex-wrap gap-1 mt-1.5">
                                 {memberRoles.map((r, idx) => (
                                   <span 
@@ -1195,10 +1157,9 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* AÇÕES DE GESTÃO DO ADMIN (EDITAR FUNÇÕES + ATIVAR/DESATIVAR ADMIN) */}
+                        {/* Gestão do Admin */}
                         {isCurrentUserAdmin && (
                           <div className="pt-3 border-t border-church-border flex items-center justify-between gap-2">
-                            {/* Botão de Editar Funções do Membro */}
                             <button
                               type="button"
                               onClick={() => handleOpenEditMemberRoles(member)}
@@ -1209,7 +1170,6 @@ export default function App() {
                               Funções
                             </button>
 
-                            {/* Botão de Permissão Admin */}
                             <button
                               type="button"
                               onClick={() => handleToggleAdmin(member.id, member.role)}
@@ -1224,11 +1184,11 @@ export default function App() {
                             >
                               {isAdmin ? (
                                 <>
-                                  <ShieldAlert className="w-3 h-3" /> Remover Admin
+                                  <ShieldAlert className="w-3.5 h-3.5" /> Remover Admin
                                 </>
                               ) : (
                                 <>
-                                  <ShieldCheck className="w-3 h-3" /> Tornar Admin
+                                  <ShieldCheck className="w-3.5 h-3.5" /> Tornar Admin
                                 </>
                               )}
                             </button>
@@ -1245,7 +1205,7 @@ export default function App() {
 
         </main>
 
-        {/* MODAL PARA O ADMIN EDITAR AS FUNÇÕES DE QUALQUER VOLUNTÁRIO */}
+        {/* Modal de Edição de Funções do Voluntário */}
         {editingMemberRoles && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
             <div className="bg-church-card border border-church-border rounded-3xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">

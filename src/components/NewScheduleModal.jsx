@@ -95,11 +95,10 @@ export default function NewScheduleModal({
   const [isSavingQuickSong, setIsSavingQuickSong] = useState(false);
   const [songAddedFeedback, setSongAddedFeedback] = useState('');
 
-  // Referência para controlar inicialização apenas ao abrir o modal
+  // Controle de abertura para evitar reset de dados em re-renders
   const prevIsOpenRef = useRef(false);
 
   useEffect(() => {
-    // SÓ reinicia os campos quando o modal transita de fechado para aberto
     if (isOpen && !prevIsOpenRef.current) {
       if (scheduleToEdit) {
         setTitle(scheduleToEdit.title || 'Culto de Celebração');
@@ -134,7 +133,8 @@ export default function NewScheduleModal({
               song_id: s.song_id,
               title: s.song?.title || songs.find(x => x.id === s.song_id)?.title || 'Louvor',
               artist: s.song?.artist || songs.find(x => x.id === s.song_id)?.artist || '',
-              custom_key: s.custom_key || s.song?.default_key || 'C'
+              custom_key: s.song_key || s.custom_key || s.song?.default_key || 'C',
+              song_key: s.song_key || s.custom_key || s.song?.default_key || 'C'
             }))
           );
         }
@@ -204,13 +204,16 @@ export default function NewScheduleModal({
     const song = songs.find((s) => s.id === tempSongId);
     if (!song) return;
 
+    const chosenKey = tempSongKey || song.default_key || 'C';
+
     setSelectedSongs((prev) => [
       ...prev,
       {
         song_id: song.id,
         title: song.title,
         artist: song.artist,
-        custom_key: tempSongKey || song.default_key || 'C'
+        custom_key: chosenKey,
+        song_key: chosenKey
       }
     ]);
 
@@ -222,7 +225,7 @@ export default function NewScheduleModal({
     setSelectedSongs((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // Busca rápida de louvores
+  // Busca rápida de faixas no iTunes
   const handleQuickSearchTrack = async (e) => {
     e?.preventDefault();
     if (!quickSearchTerm.trim()) return;
@@ -282,7 +285,7 @@ export default function NewScheduleModal({
     setQuickSearchResults([]);
   };
 
-  // Salvar Nova Música sem resetar as informações da escala
+  // Salvar Nova Música e Inserir na Escala sem resetar os campos
   const handleSaveAndAttachSong = async (e) => {
     e.preventDefault();
     if (!quickTitle.trim() || !quickArtist.trim()) {
@@ -307,19 +310,20 @@ export default function NewScheduleModal({
       });
 
       if (newSong && newSong.id) {
+        const resolvedKey = newSong.default_key || quickKey || 'C';
         setSelectedSongs((prev) => [
           ...prev,
           {
             song_id: newSong.id,
             title: newSong.title,
             artist: newSong.artist,
-            custom_key: newSong.default_key || quickKey || 'C'
+            custom_key: resolvedKey,
+            song_key: resolvedKey
           }
         ]);
         setSongAddedFeedback(`"${newSong.title}" adicionada com sucesso!`);
       }
 
-      // Limpa APENAS os campos da música adicionada para permitir buscar e adicionar a próxima
       setQuickTitle('');
       setQuickArtist('');
       setQuickChords('');
@@ -356,7 +360,7 @@ export default function NewScheduleModal({
       })),
       songs: selectedSongs.map((s, index) => ({
         song_id: s.song_id,
-        custom_key: s.custom_key,
+        song_key: s.song_key || s.custom_key || 'C',
         order_index: index + 1
       }))
     };
@@ -550,7 +554,6 @@ export default function NewScheduleModal({
               </button>
             </div>
 
-            {/* Feedback quando uma música acabou de ser inserida */}
             {songAddedFeedback && (
               <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-xs flex items-center justify-between animate-in fade-in">
                 <span className="flex items-center gap-1.5 font-semibold">
@@ -576,7 +579,7 @@ export default function NewScheduleModal({
                     type="text"
                     value={quickSearchTerm}
                     onChange={(e) => setQuickSearchTerm(e.target.value)}
-                    placeholder="Digite o próximo louvor (ex: Bondade de Deus)..."
+                    placeholder="Digite o próximo louvor..."
                     className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
                   />
                   <button
@@ -724,7 +727,7 @@ export default function NewScheduleModal({
               </div>
             )}
 
-            {/* Lista das músicas já inseridas na escala */}
+            {/* Músicas já adicionadas */}
             {selectedSongs.length > 0 && (
               <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                 {selectedSongs.map((song, idx) => (
@@ -739,7 +742,7 @@ export default function NewScheduleModal({
                         <span className="text-[10px] text-slate-400 block truncate">{song.artist}</span>
                       </div>
                       <span className="text-[10px] px-2 py-0.5 rounded-md font-black bg-blue-950/60 border border-church-blue/30 text-blue-400 flex-shrink-0">
-                        {song.custom_key}
+                        {song.song_key || song.custom_key}
                       </span>
                     </div>
 
