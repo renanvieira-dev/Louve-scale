@@ -31,8 +31,7 @@ import {
   Clock, 
   CalendarPlus, 
   SlidersHorizontal,
-  X,
-  Sparkles
+  X
 } from 'lucide-react';
 
 const AVAILABLE_ROLES = [
@@ -47,7 +46,7 @@ const AVAILABLE_ROLES = [
   'Técnico de Som'
 ];
 
-// Expurgar tags legadas antigas
+// Sanitizar termos legados antigos
 const sanitizeRoles = (rolesList) => {
   if (!Array.isArray(rolesList)) return [];
   const deprecated = [
@@ -65,23 +64,23 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Dados principais
+  // Estados principais
   const [schedules, setSchedules] = useState([]);
   const [songs, setSongs] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados de Modais
+  // Modais de Criação/Edição
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [isSongModalOpen, setIsSongModalOpen] = useState(false);
 
-  // Modal para o Admin editar funções de qualquer membro
+  // Modal para o Admin editar funções de um membro
   const [editingMemberRoles, setEditingMemberRoles] = useState(null);
   const [memberSelectedRoles, setMemberSelectedRoles] = useState([]);
   const [isSavingMemberRoles, setIsSavingMemberRoles] = useState(false);
 
-  // Estados de Autenticação
+  // Autenticação
   const [authMode, setAuthMode] = useState('login');
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -91,7 +90,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  // 1. Sessão Supabase
+  // 1. Checagem de Sessão
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -139,7 +138,7 @@ export default function App() {
           setCurrentUser(null);
         }
       } catch (err) {
-        console.error('Erro na checagem de sessão:', err);
+        console.error('Erro de sessão:', err);
       } finally {
         setLoading(false);
       }
@@ -165,7 +164,7 @@ export default function App() {
     };
   }, []);
 
-  // 2. Buscar Dados
+  // 2. Carregar dados do Supabase
   const fetchData = async () => {
     try {
       const { data: profilesData } = await supabase
@@ -221,8 +220,8 @@ export default function App() {
       });
       if (error) throw error;
     } catch (err) {
-      console.error('Erro no login com Google:', err);
-      setAuthError(err.message || 'Erro ao conectar com o Google.');
+      console.error('Erro no Google OAuth:', err);
+      setAuthError(err.message || 'Falha ao conectar conta Google.');
     } finally {
       setGoogleLoading(false);
     }
@@ -368,7 +367,7 @@ export default function App() {
     }
 
     const newRole = currentRole === 'admin' ? 'member' : 'admin';
-    if (!confirm(`Deseja alterar a permissão de administrador deste voluntário?`)) return;
+    if (!confirm('Deseja alterar a permissão de administrador deste voluntário?')) return;
 
     try {
       const { error } = await supabase
@@ -389,12 +388,12 @@ export default function App() {
         }));
       }
     } catch (err) {
-      console.error('Erro ao atualizar permissão de admin:', err);
+      console.error('Erro ao atualizar permissão:', err);
       alert('Não foi possível alterar a permissão.');
     }
   };
 
-  // Abrir modal para o Admin gerenciar as funções de um voluntário
+  // Abrir Modal de Funções do Membro (Admin)
   const handleOpenEditMemberRoles = (member) => {
     const rawRoles = Array.isArray(member.roles) && member.roles.length > 0
       ? member.roles
@@ -406,7 +405,7 @@ export default function App() {
     setMemberSelectedRoles(cleanedRoles.length > 0 ? cleanedRoles : ['Ministro(a) de Louvor']);
   };
 
-  // Salvar as funções alteradas pelo Admin no Supabase
+  // Salvar Funções alteradas pelo Admin
   const handleSaveMemberRoles = async () => {
     if (!editingMemberRoles) return;
     if (memberSelectedRoles.length === 0) {
@@ -449,7 +448,7 @@ export default function App() {
 
       setEditingMemberRoles(null);
     } catch (err) {
-      console.error('Erro ao atualizar funções do voluntário:', err);
+      console.error('Erro ao salvar funções:', err);
       alert('Não foi possível atualizar as funções.');
     } finally {
       setIsSavingMemberRoles(false);
@@ -484,8 +483,8 @@ export default function App() {
         profile: { ...prev.profile, avatar_url: publicUrl }
       }));
     } catch (err) {
-      console.error('Erro no upload de avatar:', err);
-      alert('Não foi possível enviar a foto de perfil.');
+      console.error('Erro no upload de foto:', err);
+      alert('Não foi possível atualizar a foto.');
     }
   };
 
@@ -526,7 +525,7 @@ export default function App() {
   // ==========================================
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-church-dark text-church-silver flex items-center justify-center p-4 pt-10 sm:pt-4">
+      <div className="min-h-screen bg-church-dark text-church-silver flex items-center justify-center p-4 pt-12 sm:pt-4">
         <div className="w-full max-w-md bg-church-card border border-church-border rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 animate-in fade-in">
           
           <div className="text-center flex flex-col items-center">
@@ -713,8 +712,8 @@ export default function App() {
   // ==========================================
   return (
     <div className="min-h-screen bg-church-dark text-church-silver flex flex-col items-center antialiased selection:bg-church-blue selection:text-white">
-      {/* pt-8 sm:pt-6 cria respiro para entalhe do iPhone e barra de status */}
-      <div className="w-full max-w-7xl min-h-screen flex flex-col px-4 sm:px-8 lg:px-12 pt-8 sm:pt-6 pb-20">
+      {/* pt-12 sm:pt-6 garante que o topo nunca colida com a barra de status do celular */}
+      <div className="w-full max-w-7xl min-h-screen flex flex-col px-4 sm:px-8 lg:px-12 pt-12 sm:pt-6 pb-24">
         
         {/* Header LouveScale */}
         <Header
@@ -744,11 +743,11 @@ export default function App() {
           {activeTab === 'schedules' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
+                <div className="space-y-1">
                   <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                     Escalas e Ensaios <Calendar className="w-5 h-5 text-church-blue flex-shrink-0" />
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 leading-relaxed">
                     Acompanhe a formação da equipe, repertório e sincronize com a sua agenda.
                   </p>
                 </div>
@@ -758,7 +757,7 @@ export default function App() {
                     setEditingSchedule(null);
                     setIsScheduleModalOpen(true);
                   }}
-                  className="px-4 py-2.5 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap self-stretch sm:self-auto"
                 >
                   <Plus className="w-4 h-4 flex-shrink-0" /> Nova Escala
                 </button>
@@ -953,22 +952,22 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 3: MÚSICAS */}
+          {/* ABA 3: MÚSICAS (RESPONSIVA) */}
           {activeTab === 'songs' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
+                <div className="space-y-1">
                   <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                     Repertório de Louvor <Music2 className="w-5 h-5 text-church-blue flex-shrink-0" />
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 leading-relaxed">
                     Músicas cadastradas, tons padrão, links de cifras e referências.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsSongModalOpen(true)}
-                  className="px-4 py-2.5 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap self-start sm:self-auto"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap self-stretch sm:self-auto"
                 >
                   <Plus className="w-4 h-4 flex-shrink-0" /> Nova Música
                 </button>
@@ -1049,15 +1048,15 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 4: VOLUNTÁRIOS */}
+          {/* ABA 4: VOLUNTÁRIOS (COM GESTÃO DE FUNÇÕES) */}
           {activeTab === 'members' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
+                <div className="space-y-1">
                   <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                     Equipe e Voluntários <Users className="w-5 h-5 text-church-blue flex-shrink-0" />
                   </h2>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 leading-relaxed">
                     Membros cadastrados no ministério de louvor, funções e permissões.
                   </p>
                 </div>
@@ -1158,17 +1157,16 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* PAINEL DE GESTÃO DO ADMIN (FUNÇÕES + PERMISSÃO) */}
+                        {/* BOTÕES DE GESTÃO DO ADMIN (FUNÇÕES + TORNAR/REMOVER ADMIN) */}
                         {isCurrentUserAdmin && (
-                          <div className="pt-3 border-t border-church-border flex items-center justify-between gap-2">
-                            {/* Botão de Funções do Membro */}
+                          <div className="pt-3 border-t border-church-border grid grid-cols-2 gap-2">
+                            {/* Botão de Funções */}
                             <button
                               type="button"
                               onClick={() => handleOpenEditMemberRoles(member)}
-                              className="flex-1 py-2 px-2.5 rounded-xl text-[11px] font-bold bg-slate-900 hover:bg-church-blue text-slate-200 hover:text-white border border-church-border hover:border-church-blue transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
-                              title="Tirar ou acrescentar funções deste membro"
+                              className="py-2 px-2.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-church-blue text-slate-200 hover:text-white border border-church-border hover:border-church-blue transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
                             >
-                              <SlidersHorizontal className="w-3.5 h-3.5 text-church-blue" />
+                              <SlidersHorizontal className="w-3.5 h-3.5 text-church-blue flex-shrink-0" />
                               <span>Funções</span>
                             </button>
 
@@ -1177,7 +1175,7 @@ export default function App() {
                               type="button"
                               onClick={() => handleToggleAdmin(member.id, member.role)}
                               disabled={isMe}
-                              className={`flex-1 py-2 px-2.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                              className={`py-2 px-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                                 isMe 
                                   ? 'opacity-40 cursor-not-allowed bg-slate-900 text-slate-500 border border-slate-800' 
                                   : isAdmin
@@ -1187,12 +1185,12 @@ export default function App() {
                             >
                               {isAdmin ? (
                                 <>
-                                  <ShieldAlert className="w-3.5 h-3.5" />
+                                  <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
                                   <span>Remover Admin</span>
                                 </>
                               ) : (
                                 <>
-                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
                                   <span>Tornar Admin</span>
                                 </>
                               )}
