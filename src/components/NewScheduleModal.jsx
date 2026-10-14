@@ -294,7 +294,6 @@ export default function NewScheduleModal({
     setQuickSearchResults([]);
 
     const query = `${track.title} ${track.artist} oficial`.trim();
-    setQuickYoutube(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
 
     try {
       const res = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
@@ -302,11 +301,14 @@ export default function NewScheduleModal({
         const data = await res.json();
         if (data && data.url && data.url.includes('/watch?v=')) {
           setQuickYoutube(data.url);
+          return;
         }
       }
     } catch (err) {
-      console.warn('Erro ao resolver player direto na escala:', err);
+      console.warn('Falha ao resolver player direto na escala:', err);
     }
+
+    setQuickYoutube(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
   };
 
   // Salva e anexa a música mantendo o formulário ativo para a próxima

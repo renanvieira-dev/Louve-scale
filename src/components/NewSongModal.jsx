@@ -166,6 +166,7 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
   };
 
   // 2. Ao selecionar uma versão, resolve o vídeo direto no player do YouTube
+  // Ao selecionar uma versão, busca e injeta o link direto do player
   const handleSelectVersion = async (item) => {
     setTitle(item.title);
     setArtist(item.artist);
@@ -175,7 +176,6 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
 
     setIsResolvingVideo(true);
     const query = `${item.title} ${item.artist} oficial`.trim();
-    setYoutubeUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
 
     try {
       const res = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
@@ -183,13 +183,17 @@ export default function NewSongModal({ isOpen, onClose, onSave }) {
         const data = await res.json();
         if (data && data.url && data.url.includes('/watch?v=')) {
           setYoutubeUrl(data.url);
+          return;
         }
       }
     } catch (err) {
-      console.warn('Erro ao resolver player direto:', err);
+      console.warn('Falha ao resolver vídeo direto:', err);
     } finally {
       setIsResolvingVideo(false);
     }
+
+    // Apenas se a resolução falhar, usa a busca geral como último recurso
+    setYoutubeUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`);
   };
 
   const handleSubmit = (e) => {

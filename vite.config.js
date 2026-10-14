@@ -22,27 +22,42 @@ export default defineConfig({
 
           try {
             const ytRes = await fetch(
-              `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`,
+              'https://www.youtube.com/youtubei/v1/search?prettyPrint=false',
               {
+                method: 'POST',
                 headers: {
+                  'Content-Type': 'application/json',
                   'User-Agent':
                     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7'
-                }
+                  'X-YouTube-Client-Name': '1',
+                  'X-YouTube-Client-Version': '2.20240101.01.00',
+                  'Origin': 'https://www.youtube.com',
+                  'Referer': 'https://www.youtube.com/'
+                },
+                body: JSON.stringify({
+                  context: {
+                    client: {
+                      clientName: 'WEB',
+                      clientVersion: '2.20240101.01.00',
+                      hl: 'pt-BR',
+                      gl: 'BR'
+                    }
+                  },
+                  query: q
+                })
               }
             );
 
-            const html = await ytRes.text();
-            const videoMatches = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/g);
-
-            if (videoMatches && videoMatches.length > 0) {
-              const idMatch = videoMatches[0].match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-              if (idMatch && idMatch[1]) {
+            if (ytRes.ok) {
+              const data = await ytRes.json();
+              const stringified = JSON.stringify(data);
+              const match = stringified.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+              if (match && match[1]) {
                 res.statusCode = 200;
                 res.end(
                   JSON.stringify({
-                    videoId: idMatch[1],
-                    url: `https://www.youtube.com/watch?v=${idMatch[1]}`
+                    videoId: match[1],
+                    url: `https://www.youtube.com/watch?v=${match[1]}`
                   })
                 );
                 return;
