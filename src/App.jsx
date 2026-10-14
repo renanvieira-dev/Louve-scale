@@ -32,8 +32,7 @@ import {
   CalendarPlus, 
   SlidersHorizontal,
   X,
-  Bell,
-  Sparkles
+  Bell
 } from 'lucide-react';
 
 const AVAILABLE_ROLES = [
@@ -104,7 +103,6 @@ export default function App() {
 
   // Disparador de Notificação (Nativa + Banner Flutuante no Celular)
   const triggerMobileNotification = (title, message) => {
-    // 1. Notificação nativa do celular (Push)
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
         new Notification(title, {
@@ -117,14 +115,13 @@ export default function App() {
       }
     }
 
-    // 2. Banner animado estilo iOS no topo da tela do celular
     setMobileNotice({ title, message });
     setTimeout(() => {
       setMobileNotice(null);
     }, 5000);
   };
 
-  // 1. Checagem de Sessão
+  // 1. Checagem de Sessão e Proteção contra Duplo Cadastro no Google
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -140,6 +137,7 @@ export default function App() {
           const pendingRoles = pendingRolesRaw ? JSON.parse(pendingRolesRaw) : null;
 
           if (!profile) {
+            // Primeiro cadastro real do usuário
             const googleName = session.user.user_metadata?.full_name || session.user.email?.split('@')[0];
             const googleAvatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture;
             const initialRoles = pendingRoles && pendingRoles.length > 0 ? pendingRoles : ['Backing Vocal'];
@@ -155,16 +153,13 @@ export default function App() {
 
             await supabase.from('profiles').upsert(newProfilePayload);
             setCurrentUser({ user: session.user, profile: newProfilePayload });
+            triggerMobileNotification('Cadastro Concluído! 🎉', `Bem-vindo(a), ${googleName}! Seu perfil foi criado.`);
           } else {
-            if (pendingRoles && pendingRoles.length > 0 && (!profile.roles || profile.roles.length === 0)) {
-              await supabase.from('profiles').update({
-                roles: pendingRoles,
-                instrument_role: pendingRoles[0]
-              }).eq('id', session.user.id);
-              profile.roles = pendingRoles;
-              profile.instrument_role = pendingRoles[0];
-            }
+            // O usuário já existe no sistema: NÃO sobrescreve nada
             setCurrentUser({ user: session.user, profile });
+            if (pendingRoles) {
+              triggerMobileNotification('Bem-vindo de volta! 👋', `Olá, ${profile.full_name}! Você já possui cadastro no LouveScale.`);
+            }
           }
 
           localStorage.removeItem('louvescale_pending_roles');
@@ -261,6 +256,7 @@ export default function App() {
     }
   };
 
+  // Submissão do Formulário de Autenticação com Validação de Duplicidade
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -272,8 +268,14 @@ export default function App() {
           email: authEmail.trim(),
           password: authPassword
         });
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes('Invalid login credentials')) {
+            throw new Error('E-mail ou senha incorretos. Verifique suas credenciais.');
+          }
+          throw error;
+        }
       } else {
+        // TENTATIVA DE NOVO CADASTRO
         const { data, error } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
@@ -285,8 +287,32 @@ export default function App() {
             }
           }
         });
-        if (error) throw error;
 
+        // 1. Checagem: Erro direto retornado pelo Supabase para e-mail já existente
+        if (error) {
+          const errMsg = error.message?.toLowerCase() || '';
+          if (
+            errMsg.includes('already registered') || 
+            errMsg.includes('already in use') || 
+            errMsg.includes('user already exists')
+          ) {
+            setAuthError('Este e-mail já está cadastrado no sistema! Acesse com a sua senha na aba "Entrar".');
+            setAuthMode('login');
+            setAuthPassword('');
+            return;
+          }
+          throw error;
+        }
+
+        // 2. Checagem: Proteção contra enumeração (identities vazio significa que o usuário já existe)
+        if (data?.user?.identities && data.user.identities.length === 0) {
+          setAuthError('Este e-mail já possui cadastro no LouveScale! Por favor, faça login com a sua senha.');
+          setAuthMode('login');
+          setAuthPassword('');
+          return;
+        }
+
+        // Se cadastrou com sucesso
         if (data.user) {
           await supabase.from('profiles').upsert({
             id: data.user.id,
@@ -295,6 +321,7 @@ export default function App() {
             instrument_role: authSelectedRoles[0] || 'Voluntário',
             role: 'member'
           });
+          triggerMobileNotification('Cadastro Concluído! 🎉', 'Bem-vindo ao LouveScale! Seu perfil foi criado com sucesso.');
         }
       }
     } catch (err) {
@@ -311,7 +338,7 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  // Salvar Escala com Notificação no Celular
+  // Salvar Escala
   const handleSaveSchedule = async (schedulePayload, scheduleId) => {
     try {
       const creatorName = currentUser?.profile?.full_name || 'Admin';
@@ -356,7 +383,7 @@ export default function App() {
     setIsScheduleModalOpen(true);
   };
 
-  // Salvar Música com Notificação no Celular
+  // Salvar Música
   const handleSaveSong = async (songPayload) => {
     try {
       const cleanPayload = {
@@ -763,7 +790,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-church-dark text-church-silver flex flex-col items-center antialiased selection:bg-church-blue selection:text-white">
       
-      {/* BANNER FLUTUANTE DE NOTIFICAÇÃO NO CELULAR (ESTILO iOS PUSH) */}
+      {/* BANNER FLUTUANTE DE NOTIFICAÇÃO NO CELULAR */}
       {mobileNotice && (
         <div className="fixed top-3 left-4 right-4 z-50 max-w-md mx-auto bg-slate-900/95 backdrop-blur-xl border border-church-blue/50 p-3.5 rounded-2xl shadow-2xl shadow-black/80 flex items-start gap-3 animate-in slide-in-from-top-4 duration-300">
           <div className="w-8 h-8 rounded-xl bg-church-blue text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-600/40">
@@ -788,7 +815,6 @@ export default function App() {
         </div>
       )}
 
-      {/* pt-12 sm:pt-6 garante que o topo nunca colida com o relógio do celular */}
       <div className="w-full max-w-7xl min-h-screen flex flex-col px-4 sm:px-8 lg:px-12 pt-12 sm:pt-6 pb-24">
         
         {/* Header LouveScale */}
