@@ -38,6 +38,9 @@ import {
 const AVAILABLE_ROLES = [
   'Ministro(a) de Louvor',
   'Backing Vocal',
+  'Backing Vocal (Soprano)',
+  'Backing Vocal (Contralto)',
+  'Backing Vocal (Tenor)',
   'Violão',
   'Guitarra',
   'Baixo',
@@ -73,7 +76,10 @@ export default function App() {
   // Modais de Criação/Edição
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
+  
+  // Modais de Música (Criação e Edição)
   const [isSongModalOpen, setIsSongModalOpen] = useState(false);
+  const [editingSong, setEditingSong] = useState(null);
 
   // Modal para o Admin editar funções de um membro
   const [editingMemberRoles, setEditingMemberRoles] = useState(null);
@@ -93,14 +99,12 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
-  // Solicitar permissão de notificação nativa do celular ao abrir
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
   }, []);
 
-  // Disparador de Notificação (Nativa + Banner Flutuante no Celular)
   const triggerMobileNotification = (title, message) => {
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
@@ -120,7 +124,7 @@ export default function App() {
     }, 5000);
   };
 
-  // 1. Checagem de Sessão e Proteção contra Duplo Cadastro no Google
+  // 1. Checagem de Sessão
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -190,7 +194,7 @@ export default function App() {
     };
   }, []);
 
-  // 2. Google One Tap: Puxa a conta do Google conectada no celular sem digitar senha
+  // 2. Google One Tap
   useEffect(() => {
     if (currentUser || loading) return;
 
@@ -221,7 +225,6 @@ export default function App() {
             cancel_on_tap_outside: true
           });
 
-          // Dispara o prompt inferior no smartphone ("Continuar como...")
           window.google.accounts.id.prompt();
         } catch (e) {
           console.warn('Google One Tap não pôde ser iniciado:', e);
@@ -272,7 +275,6 @@ export default function App() {
     });
   };
 
-  // Login com Google pelo botão (com fallback nativo ou redirecionamento OAuth)
   const handleGoogleLogin = async () => {
     try {
       setGoogleLoading(true);
@@ -282,11 +284,9 @@ export default function App() {
         localStorage.setItem('louvescale_pending_roles', JSON.stringify(authSelectedRoles));
       }
 
-      // Tenta prompt nativo do Google se estiver inicializado
       if (window.google?.accounts?.id && import.meta.env.VITE_GOOGLE_CLIENT_ID) {
         window.google.accounts.id.prompt((notification) => {
           if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-            // Se o One Tap for ignorado no dispositivo, faz o fluxo padrão
             supabase.auth.signInWithOAuth({
               provider: 'google',
               options: { redirectTo: window.location.origin }
@@ -296,7 +296,6 @@ export default function App() {
         return;
       }
 
-      // Redirecionamento OAuth padrão
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -312,7 +311,6 @@ export default function App() {
     }
   };
 
-  // Submissão do Formulário de E-mail com Validação contra Duplicidade
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
@@ -331,7 +329,6 @@ export default function App() {
           throw error;
         }
       } else {
-        // TENTATIVA DE CADASTRO
         const { data, error } = await supabase.auth.signUp({
           email: authEmail.trim(),
           password: authPassword,
@@ -344,7 +341,6 @@ export default function App() {
           }
         });
 
-        // 1. Checagem: Erro direto para e-mail existente
         if (error) {
           const errMsg = error.message?.toLowerCase() || '';
           if (
@@ -360,7 +356,6 @@ export default function App() {
           throw error;
         }
 
-        // 2. Checagem: identities vazio indica usuário já cadastrado
         if (data?.user?.identities && data.user.identities.length === 0) {
           setAuthError('Este e-mail já possui cadastro no LouveScale! Por favor, faça login com a sua senha.');
           setAuthMode('login');
@@ -438,8 +433,8 @@ export default function App() {
     setIsScheduleModalOpen(true);
   };
 
-  // Salvar Música
-  const handleSaveSong = async (songPayload) => {
+  // Salvar ou Editar Música
+  const handleSaveSong = async (songPayload, songId = null) => {
     try {
       const cleanPayload = {
         title: songPayload.title?.trim(),
@@ -453,28 +448,57 @@ export default function App() {
         cleanPayload.bpm = parseInt(songPayload.bpm, 10);
       }
 
-      const { data, error } = await supabase
-        .from('songs')
-        .insert([cleanPayload])
-        .select()
-        .single();
+      let resultData = null;
 
-      if (error) throw error;
+      if (songId) {
+        // Atualização de música existente
+        const { data, error } = await supabase
+          .from('songs')
+          .update(cleanPayload)
+          .eq('id', songId)
+          .select()
+          .single();
 
-      const creatorName = currentUser?.profile?.full_name || 'Membro do Louvor';
-      triggerMobileNotification(
-        'Novo Louvor Adicionado! 🎵',
-        `"${cleanPayload.title}" (${cleanPayload.artist}) adicionada por ${creatorName}. Tom ${cleanPayload.default_key}.`
-      );
+        if (error) throw error;
+        resultData = data;
+
+        triggerMobileNotification(
+          'Música Atualizada! 🎵',
+          `"${cleanPayload.title}" foi editada com sucesso.`
+        );
+      } else {
+        // Nova inserção
+        const { data, error } = await supabase
+          .from('songs')
+          .insert([cleanPayload])
+          .select()
+          .single();
+
+        if (error) throw error;
+        resultData = data;
+
+        const creatorName = currentUser?.profile?.full_name || 'Membro do Louvor';
+        triggerMobileNotification(
+          'Novo Louvor Adicionado! 🎵',
+          `"${cleanPayload.title}" (${cleanPayload.artist}) adicionada por ${creatorName}. Tom ${cleanPayload.default_key}.`
+        );
+      }
 
       await fetchData();
       setIsSongModalOpen(false);
-      return data;
+      setEditingSong(null);
+      return resultData;
     } catch (err) {
-      console.error('Erro ao cadastrar música:', err);
-      alert('Erro ao adicionar louvor: ' + (err.message || 'Verifique os dados.'));
+      console.error('Erro ao cadastrar/atualizar música:', err);
+      alert('Erro ao salvar louvor: ' + (err.message || 'Verifique os dados.'));
       throw err;
     }
+  };
+
+  // Abrir Modal para Editar Música
+  const handleOpenEditSong = (song) => {
+    setEditingSong(song);
+    setIsSongModalOpen(true);
   };
 
   // Excluir Música
@@ -729,7 +753,7 @@ export default function App() {
                           : 'bg-church-card text-slate-400 border-church-border hover:border-slate-600 hover:text-white'
                       }`}
                     >
-                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                       {role}
                     </button>
                   );
@@ -738,7 +762,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Botão Oficial Google (com suporte ao One Tap de 1 Toque) */}
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -1110,7 +1133,7 @@ export default function App() {
             </div>
           )}
 
-          {/* ABA 3: MÚSICAS */}
+          {/* ABA 3: MÚSICAS (COM BOTÃO DE EDIÇÃO) */}
           {activeTab === 'songs' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1124,7 +1147,10 @@ export default function App() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsSongModalOpen(true)}
+                  onClick={() => {
+                    setEditingSong(null);
+                    setIsSongModalOpen(true);
+                  }}
                   className="w-full sm:w-auto px-4 py-2.5 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/30 flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap self-stretch sm:self-auto"
                 >
                   <Plus className="w-4 h-4 flex-shrink-0" /> Nova Música
@@ -1189,14 +1215,26 @@ export default function App() {
                           )}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSong(song.id)}
-                          className="text-slate-600 hover:text-church-red p-1 rounded-lg transition-colors cursor-pointer"
-                          title="Remover música"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Botões de Ação na Música: Editar e Excluir */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditSong(song)}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-church-blue text-slate-400 hover:text-white transition-colors cursor-pointer"
+                            title="Editar dados da música"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSong(song.id)}
+                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-church-red text-slate-400 hover:text-white transition-colors cursor-pointer"
+                            title="Remover música"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                     </div>
@@ -1464,10 +1502,14 @@ export default function App() {
           onCreateSong={handleSaveSong}
         />
 
-        {/* Modal de Música */}
+        {/* Modal de Música (Adicionar ou Editar) */}
         <NewSongModal
           isOpen={isSongModalOpen}
-          onClose={() => setIsSongModalOpen(false)}
+          onClose={() => {
+            setIsSongModalOpen(false);
+            setEditingSong(null);
+          }}
+          songToEdit={editingSong}
           onSave={handleSaveSong}
         />
 

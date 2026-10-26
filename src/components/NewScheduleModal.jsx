@@ -12,12 +12,16 @@ import {
   Search, 
   Loader2, 
   Sparkles, 
-  CheckCircle2 
+  CheckCircle2,
+  Tag
 } from 'lucide-react';
 
 const SCHEDULE_ROLES = [
   'Ministro(a) de Louvor',
   'Backing Vocal',
+  'Backing Vocal (Soprano)',
+  'Backing Vocal (Contralto)',
+  'Backing Vocal (Tenor)',
   'Violão',
   'Guitarra',
   'Baixo',
@@ -31,28 +35,6 @@ const COMMON_KEYS = [
   'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
   'Cm', 'C#m', 'Dm', 'D#m', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'
 ];
-
-const DEFAULT_TONES_MAP = {
-  'digno de tudo': 'D',
-  'te exaltamos': 'D',
-  'e ele': 'E',
-  'é ele': 'E',
-  'tu es + e ele': 'E',
-  'tu és + é ele': 'E',
-  'bondade de deus': 'G',
-  'todavia me alegrarei': 'C',
-  'ousado amor': 'Gb',
-  'oh quao lindo': 'D',
-  'oh quão lindo': 'D',
-  'a bencao': 'Bb',
-  'a bênção': 'Bb',
-  'me atraiu': 'Em',
-  'a casa e sua': 'A',
-  'a casa é sua': 'A',
-  'ruja o leao': 'C#m',
-  'ruja o leão': 'C#m',
-  'liberta-me de mim': 'G'
-};
 
 const QUICK_TIMES = ['09:00', '10:00', '18:00', '19:00', '19:30', '20:00'];
 
@@ -71,10 +53,10 @@ export default function NewScheduleModal({
   const [time, setTime] = useState('19:00');
   const [notes, setNotes] = useState('');
 
-  // Voluntários da Escala
+  // Voluntários da Escala (com suporte a múltiplas funções)
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [tempProfileId, setTempProfileId] = useState('');
-  const [tempRole, setTempRole] = useState('Backing Vocal');
+  const [tempRoles, setTempRoles] = useState(['Ministro(a) de Louvor']);
 
   // Músicas Selecionadas
   const [selectedSongs, setSelectedSongs] = useState([]);
@@ -148,6 +130,8 @@ export default function NewScheduleModal({
       }
       setShowQuickAddSong(false);
       setSongAddedFeedback('');
+      setTempProfileId('');
+      setTempRoles(['Ministro(a) de Louvor']);
     }
 
     prevIsOpenRef.current = isOpen;
@@ -170,25 +154,45 @@ export default function NewScheduleModal({
     setDate(`${yyyy}-${mm}-${dd}`);
   };
 
+  // Alterna uma função na seleção do voluntário a ser adicionado
+  const toggleTempRole = (role) => {
+    setTempRoles((prev) => {
+      if (prev.includes(role)) {
+        if (prev.length === 1) return prev;
+        return prev.filter((r) => r !== role);
+      }
+      return [...prev, role];
+    });
+  };
+
   const handleAddMember = () => {
     if (!tempProfileId) {
       alert('Selecione um voluntário.');
       return;
     }
 
+    if (tempRoles.length === 0) {
+      alert('Selecione ao menos uma função para o voluntário.');
+      return;
+    }
+
     const profile = profiles.find((p) => p.id === tempProfileId);
     if (!profile) return;
+
+    // Combina as múltiplas funções (ex: "Ministro(a) de Louvor + Violão")
+    const combinedRoles = tempRoles.join(' + ');
 
     setSelectedMembers((prev) => [
       ...prev,
       {
         profile_id: profile.id,
         full_name: profile.full_name,
-        role_in_schedule: tempRole
+        role_in_schedule: combinedRoles
       }
     ]);
 
     setTempProfileId('');
+    setTempRoles(['Ministro(a) de Louvor']);
   };
 
   const handleRemoveMember = (idx) => {
@@ -241,41 +245,12 @@ export default function NewScheduleModal({
       if (response.ok) {
         const data = await response.json();
         const tracks = data.results || [];
-        const formatted = tracks.map((track) => {
-          const trackTitle = track.trackName;
-          const artistName = track.artistName;
-
-          const cleanArtist = artistName
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]/g, '-')
-            .replace(/-+/g, '-');
-
-          const cleanSong = trackTitle
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]/g, '-')
-            .replace(/-+/g, '-');
-
-          let estimatedKey = 'G';
-          const normTitle = trackTitle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          for (const [pattern, keyVal] of Object.entries(DEFAULT_TONES_MAP)) {
-            if (normTitle.includes(pattern)) {
-              estimatedKey = keyVal;
-              break;
-            }
-          }
-
-          return {
-            title: trackTitle,
-            artist: artistName,
-            thumbnail: track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb.jpg', '200x200bb.jpg') : '',
-            chordsUrl: `https://www.cifraclub.com.br/${cleanArtist}/${cleanSong}/`,
-            key: estimatedKey
-          };
-        });
+        const formatted = tracks.map((track) => ({
+          title: track.trackName,
+          artist: track.artistName,
+          thumbnail: track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb.jpg', '200x200bb.jpg') : '',
+          key: 'G'
+        }));
         setQuickSearchResults(formatted);
       }
     } catch (err) {
@@ -288,11 +263,8 @@ export default function NewScheduleModal({
   const handleSelectQuickTrack = async (track) => {
     setQuickTitle(track.title);
     setQuickArtist(track.artist);
-    setQuickChords(track.chordsUrl);
     setQuickKey(track.key || 'G');
     setQuickSearchResults([]);
-
-    const query = `${track.title} ${track.artist}`.trim();
 
     try {
       const chordsRes = await fetch(`/api/chords?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
@@ -304,7 +276,7 @@ export default function NewScheduleModal({
     } catch (_) {}
 
     try {
-      const res = await fetch(`/api/youtube?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/youtube?q=${encodeURIComponent(`${track.title} ${track.artist}`)}`);
       if (res.ok) {
         const data = await res.json();
         if (data?.url) setQuickYoutube(data.url);
@@ -494,7 +466,6 @@ export default function NewScheduleModal({
               </div>
             </div>
 
-            {/* Input de Data com Altura Fixa e Ícone de Indicação */}
             <div className="relative flex items-center">
               <input
                 required
@@ -516,7 +487,7 @@ export default function NewScheduleModal({
             </div>
           </div>
 
-          {/* Horário Unificado e Harmonizado */}
+          {/* Horário Unificado */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-church-blue" /> Horário
@@ -596,7 +567,6 @@ export default function NewScheduleModal({
               </div>
             )}
 
-            {/* Painel 1: Cadastro Rápido de Música */}
             {showQuickAddSong ? (
               <div className="bg-church-dark p-3.5 rounded-2xl border border-church-blue/40 space-y-3 animate-in fade-in">
                 <div className="flex items-center justify-between">
@@ -714,7 +684,6 @@ export default function NewScheduleModal({
                 </button>
               </div>
             ) : (
-              /* Painel 2: Repertório Existente (Alinhamento perfeito de altura) */
               <div className="space-y-2 bg-church-dark p-3 rounded-2xl border border-church-border">
                 <select
                   value={tempSongId}
@@ -759,7 +728,6 @@ export default function NewScheduleModal({
               </div>
             )}
 
-            {/* Lista de Músicas Inseridas */}
             {selectedSongs.length > 0 && (
               <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                 {selectedSongs.map((song, idx) => (
@@ -791,7 +759,7 @@ export default function NewScheduleModal({
             )}
           </div>
 
-          {/* VOLUNTÁRIOS ESCALADOS */}
+          {/* VOLUNTÁRIOS ESCALADOS (COM MÚLTIPLAS FUNÇÕES POR PESSOA) */}
           <div className="pt-3 border-t border-church-border space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -802,45 +770,78 @@ export default function NewScheduleModal({
               </span>
             </div>
 
-            <div className="space-y-2 bg-church-dark p-3 rounded-2xl border border-church-border">
-              <select
-                value={tempProfileId}
-                onChange={(e) => setTempProfileId(e.target.value)}
-                className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 h-11 sm:h-10 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
-              >
-                <option value="">Selecione o voluntário...</option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name} ({Array.isArray(p.roles) ? p.roles.join(', ') : (p.instrument_role || 'Voluntário')})
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex items-center gap-2">
+            <div className="space-y-3 bg-church-dark p-3 rounded-2xl border border-church-border">
+              {/* 1. Seleciona a Pessoa */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold text-slate-400">1. Selecione o Voluntário:</label>
                 <select
-                  value={tempRole}
-                  onChange={(e) => setTempRole(e.target.value)}
-                  className="flex-1 min-w-0 box-border bg-church-card border border-church-border rounded-xl px-3 h-11 sm:h-10 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
+                  value={tempProfileId}
+                  onChange={(e) => {
+                    const pId = e.target.value;
+                    setTempProfileId(pId);
+                    const found = profiles.find((p) => p.id === pId);
+                    if (found && Array.isArray(found.roles) && found.roles.length > 0) {
+                      setTempRoles([found.roles[0]]);
+                    }
+                  }}
+                  className="w-full box-border bg-church-card border border-church-border rounded-xl px-3 h-11 sm:h-10 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue"
                 >
-                  {SCHEDULE_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
+                  <option value="">Selecione o voluntário...</option>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name} ({Array.isArray(p.roles) ? p.roles.join(', ') : (p.instrument_role || 'Voluntário')})
                     </option>
                   ))}
                 </select>
-
-                <button
-                  type="button"
-                  onClick={handleAddMember}
-                  className="h-11 sm:h-10 px-4 bg-slate-900 hover:bg-church-blue text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-church-border hover:border-church-blue flex-shrink-0"
-                >
-                  <Plus className="w-4 h-4" /> Adicionar
-                </button>
               </div>
+
+              {/* 2. Seleção de Funções Múltiplas */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-church-blue" /> 2. Funções nesta Escala (marque quantas exercer):
+                  </label>
+                  <span className="text-[10px] text-church-blue font-bold">
+                    {tempRoles.length} marcada(s)
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 p-2 bg-church-card rounded-xl border border-church-border max-h-36 overflow-y-auto">
+                  {SCHEDULE_ROLES.map((r) => {
+                    const isSelected = tempRoles.includes(r);
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => toggleTempRole(r)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 border ${
+                          isSelected
+                            ? 'bg-church-blue text-white border-church-blue shadow-sm shadow-blue-600/30'
+                            : 'bg-church-dark text-slate-400 border-church-border hover:border-slate-600 hover:text-white'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                        {r}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Botão de Adicionar à Lista */}
+              <button
+                type="button"
+                onClick={handleAddMember}
+                disabled={!tempProfileId}
+                className="w-full h-11 sm:h-10 px-4 bg-church-blue hover:bg-church-blue-hover disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-blue-600/20"
+              >
+                <Plus className="w-4 h-4" /> Adicionar Voluntário com as Funções Acima
+              </button>
             </div>
 
+            {/* Lista dos Voluntários já adicionados */}
             {selectedMembers.length > 0 && (
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                 {selectedMembers.map((member, idx) => (
                   <div
                     key={idx}
