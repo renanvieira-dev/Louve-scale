@@ -20,9 +20,6 @@ import {
 const SCHEDULE_ROLES = [
   'Ministro(a) de Louvor',
   'Backing Vocal',
-  'Backing Vocal (Soprano)',
-  'Backing Vocal (Contralto)',
-  'Backing Vocal (Tenor)',
   'Violão',
   'Guitarra',
   'Baixo',
@@ -46,7 +43,8 @@ export default function NewScheduleModal({
   songs = [],
   scheduleToEdit = null,
   onSave,
-  onCreateSong
+  onCreateSong,
+  onEditSong // Abre o modal completo de edição de música
 }) {
   const [title, setTitle] = useState('Culto de Celebração');
   const [type, setType] = useState('service');
@@ -64,10 +62,6 @@ export default function NewScheduleModal({
   const [tempSongId, setTempSongId] = useState('');
   const [tempSongKey, setTempSongKey] = useState('');
 
-  // Edição inline de música adicionada na escala
-  const [editingSongIndex, setEditingSongIndex] = useState(null);
-  const [editingKeyVal, setEditingKeyVal] = useState('C');
-
   // Painel de Cadastro Rápido de Música
   const [showQuickAddSong, setShowQuickAddSong] = useState(false);
   const [quickSearchTerm, setQuickSearchTerm] = useState('');
@@ -84,6 +78,7 @@ export default function NewScheduleModal({
 
   const prevIsOpenRef = useRef(false);
 
+  // Inicialização ao abrir modal
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
       if (scheduleToEdit) {
@@ -137,11 +132,30 @@ export default function NewScheduleModal({
       setSongAddedFeedback('');
       setTempProfileId('');
       setTempRoles(['Ministro(a) de Louvor']);
-      setEditingSongIndex(null);
     }
 
     prevIsOpenRef.current = isOpen;
   }, [isOpen, scheduleToEdit]);
+
+  // SINCRONIZAÇÃO AUTOMÁTICA: Quando o repertório de músicas atualiza, atualiza na escala na mesma hora
+  useEffect(() => {
+    if (songs.length > 0 && selectedSongs.length > 0) {
+      setSelectedSongs((prevSelected) =>
+        prevSelected.map((item) => {
+          const latest = songs.find((s) => s.id === item.song_id);
+          if (!latest) return item;
+          return {
+            ...item,
+            title: latest.title,
+            artist: latest.artist,
+            // Atualiza o tom na escala com o novo tom padrão da música
+            custom_key: latest.default_key || item.custom_key || 'C',
+            song_key: latest.default_key || item.song_key || 'C'
+          };
+        })
+      );
+    }
+  }, [songs]);
 
   if (!isOpen) return null;
 
@@ -231,26 +245,20 @@ export default function NewScheduleModal({
 
   const handleRemoveSong = (idx) => {
     setSelectedSongs((prev) => prev.filter((_, i) => i !== idx));
-    if (editingSongIndex === idx) setEditingSongIndex(null);
   };
 
-  // Abrir edição do tom da música já adicionada
-  const handleStartEditSong = (idx) => {
-    const s = selectedSongs[idx];
-    setEditingSongIndex(idx);
-    setEditingKeyVal(s.song_key || s.custom_key || 'C');
-  };
+  // Abre a tela cheia de "Editar Música do Repertório" para a música clicada
+  const handleTriggerEditSongModal = (songItem) => {
+    const fullSong = songs.find((s) => s.id === songItem.song_id) || {
+      id: songItem.song_id,
+      title: songItem.title,
+      artist: songItem.artist,
+      default_key: songItem.song_key || songItem.custom_key || 'C'
+    };
 
-  // Salvar novo tom da música na escala
-  const handleSaveEditedSongKey = (idx) => {
-    setSelectedSongs((prev) =>
-      prev.map((item, i) =>
-        i === idx
-          ? { ...item, song_key: editingKeyVal, custom_key: editingKeyVal }
-          : item
-      )
-    );
-    setEditingSongIndex(null);
+    if (onEditSong) {
+      onEditSong(fullSong);
+    }
   };
 
   const handleQuickSearchTrack = async (e) => {
@@ -411,7 +419,7 @@ export default function NewScheduleModal({
           </button>
         </div>
 
-        {/* Formulário com Scroll Stylizado */}
+        {/* Formulário com Scroll Estilizado */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
           {/* Tipo de Evento */}
@@ -753,107 +761,53 @@ export default function NewScheduleModal({
               </div>
             )}
 
-            {/* LISTA DE MÚSICAS DA ESCALA COM EDIÇÃO */}
+            {/* LISTA DE MÚSICAS DA ESCALA COM BOTÃO DE LÁPIS INTEGRADO */}
             {selectedSongs.length > 0 && (
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {selectedSongs.map((song, idx) => {
-                  const isEditingThis = editingSongIndex === idx;
-
-                  return (
-                    <div
-                      key={idx}
-                      className={`p-3 rounded-2xl bg-church-dark border transition-all ${
-                        isEditingThis
-                          ? 'border-church-blue/80 shadow-md shadow-blue-600/10'
-                          : 'border-church-border'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span className="text-[11px] font-bold text-slate-500 w-4">{idx + 1}.</span>
-                          <div className="min-w-0">
-                            <h4 className="text-xs font-extrabold text-white truncate leading-tight">
-                              {song.title}
-                            </h4>
-                            <span className="text-[10px] text-slate-400 block truncate">
-                              {song.artist}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          <span className="text-[11px] font-black px-2.5 py-0.5 rounded-lg bg-blue-950/80 border border-church-blue/40 text-blue-400">
-                            {song.song_key || song.custom_key || 'C'}
-                          </span>
-
-                          {/* Botão de Editar Louvor na Escala */}
-                          <button
-                            type="button"
-                            onClick={() => isEditingThis ? setEditingSongIndex(null) : handleStartEditSong(idx)}
-                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                              isEditingThis
-                                ? 'bg-church-blue text-white'
-                                : 'bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white'
-                            }`}
-                            title="Editar tom desta música na escala"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Excluir da Escala */}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSong(idx)}
-                            className="p-1.5 rounded-lg bg-slate-900 hover:bg-church-red text-slate-400 hover:text-white transition-colors cursor-pointer"
-                            title="Remover louvor da escala"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                {selectedSongs.map((song, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-2xl bg-church-dark border border-church-border flex items-center justify-between gap-2 transition-all hover:border-church-blue/50"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-[11px] font-bold text-slate-500 w-4">{idx + 1}.</span>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-extrabold text-white truncate leading-tight">
+                          {song.title}
+                        </h4>
+                        <span className="text-[10px] text-slate-400 block truncate">
+                          {song.artist}
+                        </span>
                       </div>
-
-                      {/* Painel Aberto de Edição de Tom */}
-                      {isEditingThis && (
-                        <div className="mt-2.5 pt-2.5 border-t border-church-border flex items-center justify-between gap-2 animate-in fade-in">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-400 font-semibold whitespace-nowrap">
-                              Alterar Tom:
-                            </span>
-                            <select
-                              value={editingKeyVal}
-                              onChange={(e) => setEditingKeyVal(e.target.value)}
-                              className="bg-church-card border border-church-border rounded-lg px-2.5 py-1 text-xs text-white font-bold focus:outline-none focus:border-church-blue"
-                            >
-                              {COMMON_KEYS.map((k) => (
-                                <option key={k} value={k}>
-                                  Tom {k}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setEditingSongIndex(null)}
-                              className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 hover:text-white"
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleSaveEditedSongKey(idx)}
-                              className="px-3 py-1 bg-church-blue hover:bg-church-blue-hover text-white text-[11px] font-bold rounded-lg flex items-center gap-1 cursor-pointer shadow-sm"
-                            >
-                              <Check className="w-3 h-3 stroke-[2.5]" /> Salvar
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
                     </div>
-                  );
-                })}
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span className="text-[11px] font-black px-2.5 py-0.5 rounded-lg bg-blue-950/80 border border-church-blue/40 text-blue-400">
+                        {song.song_key || song.custom_key || 'C'}
+                      </span>
+
+                      {/* Botão de Lápis: Abre a tela completa "Editar Música do Repertório" */}
+                      <button
+                        type="button"
+                        onClick={() => handleTriggerEditSongModal(song)}
+                        className="p-1.5 rounded-lg bg-slate-900 hover:bg-church-blue text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        title="Editar música completa no repertório"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* Excluir da Escala */}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSong(idx)}
+                        className="p-1.5 rounded-lg bg-slate-900 hover:bg-church-red text-slate-400 hover:text-white transition-colors cursor-pointer"
+                        title="Remover louvor da escala"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

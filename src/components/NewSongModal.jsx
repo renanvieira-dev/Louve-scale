@@ -1,29 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Music2, 
-  Check, 
-  Link as LinkIcon, 
-  Search, 
-  Loader2, 
-  Video, 
-  ExternalLink,
-  Pencil
-} from 'lucide-react';
+import { X, Music2, Search, Loader2, Check, Sparkles, ExternalLink, Pencil } from 'lucide-react';
 
 const COMMON_KEYS = [
   'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
   'Cm', 'C#m', 'Dm', 'D#m', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'
 ];
 
-export default function NewSongModal({ isOpen, onClose, onSave, songToEdit = null }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-
-  // Campos do formulário
+export default function NewSongModal({
+  isOpen = false,
+  onClose,
+  songToEdit = null,
+  onSave
+}) {
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [defaultKey, setDefaultKey] = useState('G');
@@ -31,7 +19,11 @@ export default function NewSongModal({ isOpen, onClose, onSave, songToEdit = nul
   const [chordsUrl, setChordsUrl] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
 
-  // Carrega os dados se for modo de edição
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       if (songToEdit) {
@@ -51,131 +43,93 @@ export default function NewSongModal({ isOpen, onClose, onSave, songToEdit = nul
       }
       setSearchTerm('');
       setSearchResults([]);
-      setHasSearched(false);
     }
   }, [isOpen, songToEdit]);
 
   if (!isOpen) return null;
 
-  const cleanSongTitle = (raw) => {
-    return (raw || '')
-      .replace(/\s*[\(\[](feat\.\vert{}ao vivo\vert{}live\vert{}acústico\vert{}acustico\vert{}clipe oficial\vert{}playback\vert{}vídeo oficial\vert{}video oficial).*?[\)\]]/gi, '')
-      .trim();
-  };
-
-  const cleanArtistName = (raw) => {
-    return (raw || '')
-      .split(/[,&/]|feat\./i)[0]
-      .replace(/\s*[\(\[].*?[\)\]]/g, '')
-      .trim();
-  };
-
-  const handleSearchVersions = async (e) => {
+  const handleSearchTrack = async (e) => {
     e?.preventDefault();
-    const query = searchTerm.trim();
-    if (!query) return;
+    if (!searchTerm.trim()) return;
 
     try {
       setIsSearching(true);
-      setHasSearched(true);
       setSearchResults([]);
-
       const response = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=8&country=BR`
+        `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm.trim())}&entity=song&limit=6&country=BR`
       );
 
-      if (!response.ok) throw new Error('Falha ao procurar faixas');
-
-      const data = await response.json();
-      const tracks = data.results || [];
-
-      if (tracks.length > 0) {
-        const formatted = tracks.map((track) => ({
-          id: track.trackId,
+      if (response.ok) {
+        const data = await response.json();
+        const formatted = (data.results || []).map((track) => ({
           title: track.trackName,
           artist: track.artistName,
-          album: track.collectionName || '',
-          thumbnail: track.artworkUrl100
-            ? track.artworkUrl100.replace('100x100bb.jpg', '200x200bb.jpg')
-            : ''
+          thumbnail: track.artworkUrl100 ? track.artworkUrl100.replace('100x100bb.jpg', '200x200bb.jpg') : '',
+          key: 'G'
         }));
         setSearchResults(formatted);
-      } else {
-        setSearchResults([]);
       }
     } catch (err) {
-      console.error('Erro na pesquisa:', err);
-      setSearchResults([]);
+      console.error('Erro na busca de músicas:', err);
     } finally {
       setIsSearching(false);
     }
   };
 
-  const handleSelectVersion = async (item) => {
-    const sanitizedTitle = cleanSongTitle(item.title);
-    const sanitizedArtist = cleanArtistName(item.artist);
-
-    setTitle(sanitizedTitle || item.title);
-    setArtist(sanitizedArtist || item.artist);
+  const handleSelectTrack = async (track) => {
+    setTitle(track.title);
+    setArtist(track.artist);
+    setDefaultKey(track.key || 'G');
     setSearchResults([]);
-    setIsLoadingDetails(true);
 
     try {
-      const chordsRes = await fetch(
-        `/api/chords?title=${encodeURIComponent(sanitizedTitle)}&artist=${encodeURIComponent(sanitizedArtist)}`
-      );
+      const chordsRes = await fetch(`/api/chords?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
       if (chordsRes.ok) {
         const chordsData = await chordsRes.json();
         if (chordsData.url) setChordsUrl(chordsData.url);
-        if (chordsData.key) {
-          const matchedKey = COMMON_KEYS.find(
-            (k) => k.toUpperCase() === chordsData.key.toUpperCase()
-          );
-          setDefaultKey(matchedKey || chordsData.key);
-        }
+        if (chordsData.key) setDefaultKey(chordsData.key);
       }
-    } catch (err) {
-      console.warn('Erro em /api/chords:', err);
-      setChordsUrl(`https://www.cifraclub.com.br/?q=${encodeURIComponent(`${sanitizedTitle}${sanitizedArtist}`)}`);
-    }
+    } catch (_) {}
 
     try {
-      const ytRes = await fetch(`/api/youtube?q=${encodeURIComponent(`${sanitizedTitle}${sanitizedArtist}`)}`);
-      if (ytRes.ok) {
-        const ytData = await ytRes.json();
-        if (ytData?.url) {
-          setYoutubeUrl(ytData.url);
-        }
+      const res = await fetch(`/api/youtube?q=${encodeURIComponent(`${track.title}${track.artist}`)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.url) setYoutubeUrl(data.url);
       }
-    } catch (err) {
-      console.warn('Erro em /api/youtube:', err);
-      setYoutubeUrl(`https://www.youtube.com/results?search_query=${encodeURIComponent(`${sanitizedTitle}${sanitizedArtist} oficial`)}`);
-    } finally {
-      setIsLoadingDetails(false);
-    }
+    } catch (_) {}
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim() || !artist.trim()) {
-      alert('Preencha o título e o artista do louvor.');
+      alert('Preencha o título e o artista.');
       return;
     }
 
-    onSave({
-      title: title.trim(),
-      artist: artist.trim(),
-      default_key: defaultKey,
-      bpm: bpm ? parseInt(bpm, 10) : null,
-      chords_url: chordsUrl.trim() || null,
-      youtube_url: youtubeUrl.trim() || null
-    }, songToEdit?.id || null);
-
-    onClose();
+    try {
+      setIsSaving(true);
+      await onSave(
+        {
+          title: title.trim(),
+          artist: artist.trim(),
+          default_key: defaultKey,
+          bpm: bpm ? parseInt(bpm, 10) : null,
+          chords_url: chordsUrl.trim() || null,
+          youtube_url: youtubeUrl.trim() || null
+        },
+        songToEdit?.id || null
+      );
+      onClose();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-church-card border border-church-border rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         
         {/* Cabeçalho */}
@@ -185,7 +139,7 @@ export default function NewSongModal({ isOpen, onClose, onSave, songToEdit = nul
               {songToEdit ? <Pencil className="w-4 h-4" /> : <Music2 className="w-4 h-4" />}
             </div>
             <h3 className="font-bold text-white text-base truncate">
-              {songToEdit ? 'Editar Música do Repertório' : 'Adicionar Nova Música'}
+              {songToEdit ? 'Editar Música do Repertório' : 'Nova Música do Repertório'}
             </h3>
           </div>
           <button
@@ -197,10 +151,10 @@ export default function NewSongModal({ isOpen, onClose, onSave, songToEdit = nul
           </button>
         </div>
 
-        {/* Corpo com Scroll */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+        {/* Formulário com Scroll */}
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
           
-          {/* Barra de Pesquisa Automática (Opcional ao cadastrar ou atualizar versão) */}
+          {/* Busca Automática */}
           <div className="bg-church-dark p-3.5 rounded-2xl border border-church-border space-y-2.5">
             <label className="text-xs font-bold text-white flex items-center gap-1.5">
               <Search className="w-3.5 h-3.5 text-church-blue" /> Buscar Dados Automáticos
@@ -208,214 +162,178 @@ export default function NewSongModal({ isOpen, onClose, onSave, songToEdit = nul
             <p className="text-[11px] text-slate-400">
               Digite o nome para puxar cifra, tom e vídeo automaticamente:
             </p>
-            
-            <form onSubmit={handleSearchVersions} className="flex gap-2">
+
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Ex: Perto Quero Estar Davi Sacer..."
-                className="flex-1 bg-church-card border border-church-border rounded-xl px-3 py-2 text-base sm:text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
+                className="flex-1 bg-church-card border border-church-border rounded-xl px-3.5 h-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-church-blue"
               />
               <button
-                type="submit"
+                type="button"
+                onClick={handleSearchTrack}
                 disabled={isSearching || !searchTerm.trim()}
-                className="px-4 py-2 bg-church-blue hover:bg-church-blue-hover disabled:opacity-40 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer flex-shrink-0 shadow-md shadow-blue-600/20"
+                className="px-4 h-10 bg-church-blue hover:bg-church-blue-hover text-white text-xs font-bold rounded-xl transition-all disabled:opacity-40 flex items-center gap-1.5 cursor-pointer flex-shrink-0"
               >
                 {isSearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
                 Buscar
               </button>
-            </form>
+            </div>
 
             {searchResults.length > 0 && (
-              <div className="pt-2 space-y-2">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Selecione a versão correspondente:
-                </span>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                  {searchResults.map((ver) => (
-                    <div
-                      key={ver.id}
-                      onClick={() => handleSelectVersion(ver)}
-                      className="p-2.5 rounded-xl bg-church-card hover:bg-church-card-hover border border-church-border hover:border-church-blue/60 flex items-center gap-3 cursor-pointer transition-all group"
-                    >
-                      {ver.thumbnail ? (
-                        <img 
-                          src={ver.thumbnail} 
-                          alt="" 
-                          className="w-10 h-10 object-cover rounded-xl flex-shrink-0 bg-slate-900 border border-church-border"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center flex-shrink-0">
-                          <Music2 className="w-4 h-4 text-slate-400" />
-                        </div>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 pt-1">
+                {searchResults.map((track, i) => (
+                  <div
+                    key={i}
+                    onClick={() => handleSelectTrack(track)}
+                    className="p-2 rounded-xl bg-church-card hover:bg-slate-800 border border-church-border flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {track.thumbnail && (
+                        <img src={track.thumbnail} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
                       )}
-
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-xs font-bold text-white group-hover:text-church-blue truncate">
-                          {ver.title}
-                        </h4>
-                        <p className="text-[11px] text-slate-300 font-medium truncate">
-                          {ver.artist}
-                        </p>
+                      <div className="min-w-0 truncate">
+                        <span className="text-xs font-bold text-white block truncate">{track.title}</span>
+                        <span className="text-[10px] text-slate-400 block truncate">{track.artist}</span>
                       </div>
-
-                      <span className="text-[10px] font-extrabold text-church-blue bg-blue-950/60 border border-church-blue/30 px-2.5 py-1 rounded-xl flex-shrink-0">
-                        Preencher
-                      </span>
                     </div>
-                  ))}
-                </div>
+                    <span className="text-[10px] font-bold text-church-blue bg-blue-950/60 px-2 py-0.5 rounded-lg border border-church-blue/30 flex-shrink-0">
+                      Preencher
+                    </span>
+                  </div>
+                ))}
               </div>
-            )}
-
-            {hasSearched && searchResults.length === 0 && !isSearching && (
-              <p className="text-[11px] text-slate-500 italic py-1">
-                Nenhum resultado encontrado com este termo.
-              </p>
             )}
           </div>
 
-          {isLoadingDetails && (
-            <div className="p-3 rounded-2xl bg-blue-950/40 border border-church-blue/40 flex items-center gap-2.5 text-xs text-blue-300 animate-pulse">
-              <Loader2 className="w-4 h-4 animate-spin text-church-blue flex-shrink-0" />
-              <span>Buscando tom original e links da música...</span>
-            </div>
-          )}
+          {/* Título do Louvor */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-300">Título do Louvor *</label>
+            <input
+              required
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Ex: Agnus Dei"
+              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-11 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+            />
+          </div>
 
-          {/* Formulário com os campos */}
-          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            
+          {/* Artista / Versão */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-300">Artista / Versão *</label>
+            <input
+              required
+              type="text"
+              value={artist}
+              onChange={(e) => setArtist(e.target.value)}
+              placeholder="Ex: Thiago Henrique Ferreira & Sarah Lanza"
+              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-11 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+            />
+          </div>
+
+          {/* Tom Padrão e BPM */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Título do Louvor *</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-300">Tom Padrão</label>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-950/60 border border-church-blue/30 text-blue-400">
+                  Tom {defaultKey}
+                </span>
+              </div>
+              <select
+                value={defaultKey}
+                onChange={(e) => setDefaultKey(e.target.value)}
+                className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3 h-11 text-xs text-slate-100 font-bold focus:outline-none focus:border-church-blue"
+              >
+                {COMMON_KEYS.map((k) => (
+                  <option key={k} value={k}>Tom {k}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-300">BPM (Tempo)</label>
               <input
-                required
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ex: Ser Mudado"
-                className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+                type="number"
+                value={bpm}
+                onChange={(e) => setBpm(e.target.value)}
+                placeholder="Ex: 120"
+                className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-11 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
               />
             </div>
+          </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-300">Artista / Versão *</label>
-              <input
-                required
-                type="text"
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-                placeholder="Ex: Alessandro Vilas Boas"
-                className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
-                  <span>Tom Padrão</span>
-                  <span className="text-[10px] font-black text-church-blue bg-blue-950/60 px-2 py-0.5 rounded border border-church-blue/30">
-                    Tom {defaultKey}
-                  </span>
-                </label>
-                <select
-                  value={defaultKey}
-                  onChange={(e) => setDefaultKey(e.target.value)}
-                  className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3 py-2.5 text-base sm:text-xs text-slate-100 focus:outline-none focus:border-church-blue font-bold"
+          {/* Link da Cifra */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300">Link da Cifra (Cifra Club / outros)</label>
+              {chordsUrl && (
+                <a
+                  href={chordsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-church-blue hover:underline font-bold flex items-center gap-1"
                 >
-                  {COMMON_KEYS.map((k) => (
-                    <option key={k} value={k}>
-                      Tom {k}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300">BPM (Tempo)</label>
-                <input
-                  type="number"
-                  value={bpm}
-                  onChange={(e) => setBpm(e.target.value)}
-                  placeholder="Ex: 68"
-                  className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2.5 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
-                />
-              </div>
+                  Testar cifra <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              )}
             </div>
+            <input
+              type="url"
+              value={chordsUrl}
+              onChange={(e) => setChordsUrl(e.target.value)}
+              placeholder="https://www.cifraclub.com.br/..."
+              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-11 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+            />
+          </div>
 
-            {/* Link da Cifra */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-church-blue" /> Link da Cifra (Cifra Club / outros)
-                </label>
-                {chordsUrl && (
-                  <a 
-                    href={chordsUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-[10px] text-blue-400 hover:underline flex items-center gap-0.5"
-                  >
-                    Testar cifra <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                )}
-              </div>
-              <input
-                type="url"
-                value={chordsUrl}
-                onChange={(e) => setChordsUrl(e.target.value)}
-                placeholder="https://www.cifraclub.com.br/..."
-                className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
-              />
+          {/* Link do Vídeo */}
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300">Vídeo / Referência (YouTube)</label>
+              {youtubeUrl && (
+                <a
+                  href={youtubeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-church-red hover:underline font-bold flex items-center gap-1"
+                >
+                  Abrir vídeo <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              )}
             </div>
+            <input
+              type="url"
+              value={youtubeUrl}
+              onChange={(e) => setYoutubeUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 h-11 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
+            />
+          </div>
 
-            {/* Link Direto do Vídeo */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                  <Video className="w-3.5 h-3.5 text-church-red" /> Vídeo / Referência (YouTube)
-                </label>
-                {youtubeUrl && (
-                  <a 
-                    href={youtubeUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="text-[10px] text-red-400 hover:underline flex items-center gap-0.5"
-                  >
-                    Abrir vídeo <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
-                )}
-              </div>
-              <input
-                type="url"
-                value={youtubeUrl}
-                onChange={(e) => setYoutubeUrl(e.target.value)}
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="w-full box-border bg-church-dark border border-church-border rounded-xl px-3.5 py-2 text-base sm:text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-church-blue"
-              />
-            </div>
+          {/* Rodapé com Botões */}
+          <div className="pt-3 border-t border-church-border flex items-center justify-end gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="px-5 py-2.5 bg-church-blue hover:bg-church-blue-hover disabled:opacity-50 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-blue-600/30 cursor-pointer flex items-center gap-1.5"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4 stroke-[2.5]" />}
+              {songToEdit ? 'Salvar Alterações' : 'Cadastrar Música'}
+            </button>
+          </div>
 
-            {/* Ações */}
-            <div className="pt-3 border-t border-church-border flex items-center justify-end gap-2 flex-shrink-0">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2.5 bg-church-blue hover:bg-church-blue-hover text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-blue-600/30 cursor-pointer flex items-center gap-1.5"
-              >
-                <Check className="w-4 h-4 stroke-[2.5]" />
-                {songToEdit ? 'Salvar Alterações' : 'Salvar Música'}
-              </button>
-            </div>
-
-          </form>
-
-        </div>
+        </form>
 
       </div>
     </div>

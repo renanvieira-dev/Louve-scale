@@ -1594,6 +1594,7 @@ export default function App() {
           scheduleToEdit={editingSchedule}
           onSave={handleSaveSchedule}
           onCreateSong={handleSaveSong}
+          onEditSong={handleOpenEditSong}
         />
 
         {/* Modal de Música (Adicionar ou Editar) */}
