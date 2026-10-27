@@ -34,3 +34,30 @@ body {
     font-size: 16px !important;
   }
 }
+
+/* Scrollbar moderno e escuro */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f17;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+  border: 1px solid #334155;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3b82f6;
+}
+
+/* Suporte para Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e293b #0b0f17;
+}
