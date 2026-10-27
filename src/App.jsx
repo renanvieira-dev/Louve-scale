@@ -32,7 +32,8 @@ import {
   CalendarPlus, 
   SlidersHorizontal,
   X,
-  Bell
+  Bell,
+  History
 } from 'lucide-react';
 
 const AVAILABLE_ROLES = [
@@ -66,6 +67,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Sub-separador na aba de Escalas: 'upcoming' | 'past'
+  const [scheduleSubTab, setScheduleSubTab] = useState('upcoming');
 
   // Estados principais
   const [schedules, setSchedules] = useState([]);
@@ -155,7 +159,7 @@ export default function App() {
 
             await supabase.from('profiles').upsert(newProfilePayload);
             setCurrentUser({ user: session.user, profile: newProfilePayload });
-            triggerMobileNotification('Cadastro Concluído! 🎉', `Bem-vindo(a), ${googleName}! O seu perfil foi criado.`);
+            triggerMobileNotification('Registo Concluído! 🎉', `Bem-vindo(a), ${googleName}! O seu perfil foi criado.`);
           } else {
             setCurrentUser({ user: session.user, profile });
             if (pendingRoles) {
@@ -433,7 +437,7 @@ export default function App() {
     setIsScheduleModalOpen(true);
   };
 
-  // Guardar ou Editar Música (Sem forçar .single() no update para prevenir erro PGRST116)
+  // Guardar ou Editar Música (sem exigir .single() para evitar o erro PGRST116)
   const handleSaveSong = async (songPayload, songId = null) => {
     try {
       const cleanPayload = {
@@ -639,7 +643,31 @@ export default function App() {
     }
   };
 
-  // Filtros
+  // Separação cronológica: Próximas Escalas vs. Encerradas (Histórico)
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const upcomingSchedules = schedules
+    .filter((s) => new Date(s.event_date) >= startOfToday)
+    .sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+
+  const pastSchedules = schedules
+    .filter((s) => new Date(s.event_date) < startOfToday)
+    .sort((a, b) => new Date(b.event_date) - new Date(a.event_date));
+
+  const activeScheduleList = scheduleSubTab === 'upcoming' ? upcomingSchedules : pastSchedules;
+
+  const filteredSchedules = activeScheduleList.filter((item) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      item.title?.toLowerCase().includes(q) ||
+      item.notes?.toLowerCase().includes(q) ||
+      item.schedule_members?.some((m) => (m.profile?.full_name || '').toLowerCase().includes(q)) ||
+      item.schedule_songs?.some((s) => (s.song?.title || '').toLowerCase().includes(q))
+    );
+  });
+
   const filteredSongs = songs.filter((s) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -918,16 +946,16 @@ export default function App() {
             />
           )}
 
-          {/* ABA 2: ESCALAS */}
+          {/* ABA 2: ESCALAS COM SEPARAÇÃO DE FUTURAS E PASSADAS */}
           {activeTab === 'schedules' && (
             <div className="space-y-6 animate-in fade-in">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="space-y-1">
                   <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
                     Escalas e Ensaios <Calendar className="w-5 h-5 text-church-blue flex-shrink-0" />
                   </h2>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Acompanhe a formação da equipa, repertório e sincronize com a sua agenda.
+                    Acompanhe a formação da equipa, repertório e datas programadas.
                   </p>
                 </div>
                 <button
@@ -942,25 +970,79 @@ export default function App() {
                 </button>
               </div>
 
-              {schedules.length === 0 ? (
-                <div className="bg-church-card border border-church-border rounded-3xl p-12 text-center text-slate-400">
-                  <Calendar className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-                  <p className="text-sm font-semibold">Nenhuma escala registada de momento.</p>
+              {/* Seletor entre Próximas e Histórico */}
+              <div className="flex items-center gap-1.5 bg-church-card p-1.5 rounded-2xl border border-church-border w-fit">
+                <button
+                  type="button"
+                  onClick={() => setScheduleSubTab('upcoming')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    scheduleSubTab === 'upcoming'
+                      ? 'bg-church-blue text-white shadow-md shadow-blue-600/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Próximas Escalas</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                    scheduleSubTab === 'upcoming' ? 'bg-white/20 text-white' : 'bg-slate-900 text-slate-400'
+                  }`}>
+                    {upcomingSchedules.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setScheduleSubTab('past')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                    scheduleSubTab === 'past'
+                      ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Encerradas / Histórico</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-extrabold ${
+                    scheduleSubTab === 'past' ? 'bg-slate-700 text-slate-200' : 'bg-slate-900 text-slate-400'
+                  }`}>
+                    {pastSchedules.length}
+                  </span>
+                </button>
+              </div>
+
+              {filteredSchedules.length === 0 ? (
+                <div className="bg-church-card border border-church-border rounded-3xl p-12 text-center text-slate-400 space-y-2">
+                  {scheduleSubTab === 'upcoming' ? (
+                    <>
+                      <Calendar className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+                      <p className="text-sm font-semibold text-slate-300">Nenhuma escala futura agendada.</p>
+                      <p className="text-xs text-slate-500">Clique em "+ Nova Escala" para criar o próximo culto ou ensaio.</p>
+                    </>
+                  ) : (
+                    <>
+                      <History className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+                      <p className="text-sm font-semibold text-slate-300">Nenhuma escala encerrada no histórico.</p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {schedules.map((item) => {
+                  {filteredSchedules.map((item) => {
                     const eventDate = new Date(item.event_date);
                     const formattedDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(eventDate);
                     const formattedTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(eventDate);
                     
                     const scheduleSongs = item.schedule_songs || [];
                     const scheduleMembers = item.schedule_members || [];
+                    const isPast = scheduleSubTab === 'past';
 
                     return (
                       <div 
                         key={item.id} 
-                        className="bg-church-card border border-church-border hover:border-church-blue/50 p-5 rounded-3xl space-y-4 transition-all flex flex-col justify-between shadow-sm"
+                        className={`bg-church-card border p-5 rounded-3xl space-y-4 transition-all flex flex-col justify-between shadow-sm ${
+                          isPast 
+                            ? 'border-church-border/60 opacity-85 hover:opacity-100 hover:border-slate-700' 
+                            : 'border-church-border hover:border-church-blue/50'
+                        }`}
                       >
                         <div className="space-y-3">
                           
@@ -968,11 +1050,13 @@ export default function App() {
                             <div>
                               <div className="flex items-center gap-2 mb-1">
                                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                                  item.type === 'rehearsal' 
-                                    ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' 
-                                    : 'bg-church-blue/10 text-church-blue border border-church-blue/20'
+                                  isPast
+                                    ? 'bg-slate-800 text-slate-400 border border-slate-700'
+                                    : item.type === 'rehearsal' 
+                                      ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20' 
+                                      : 'bg-church-blue/10 text-church-blue border border-church-blue/20'
                                 }`}>
-                                  {item.type === 'rehearsal' ? 'Ensaio' : 'Culto Oficial'}
+                                  {isPast ? 'Encerrada' : item.type === 'rehearsal' ? 'Ensaio' : 'Culto Oficial'}
                                 </span>
                                 <span className="text-xs text-slate-400 flex items-center gap-1 font-semibold">
                                   <Clock className="w-3.5 h-3.5 text-church-blue" /> {formattedTime}
@@ -1018,7 +1102,7 @@ export default function App() {
 
                             {scheduleSongs.length === 0 ? (
                               <p className="text-xs text-slate-500 italic py-1">
-                                Nenhuma música selecionada ainda. Clique em editar para montar o repertório.
+                                Nenhuma música selecionada.
                               </p>
                             ) : (
                               <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
@@ -1096,6 +1180,8 @@ export default function App() {
                                     >
                                       <span>{memberName}</span>
                                       <span className="text-[9px] text-church-blue font-bold">({sm.role})</span>
+                                      {sm.status === 'confirmed' && <span title="Confirmado">✅</span>}
+                                      {sm.status === 'declined' && <span title="Não poderá comparecer">❌</span>}
                                     </span>
                                   );
                                 })}
@@ -1105,23 +1191,25 @@ export default function App() {
 
                         </div>
 
-                        {/* Google Agenda */}
-                        <div className="pt-3 border-t border-church-border">
-                          <a
-                            href={generateGoogleCalendarUrl({
-                              title: item.title,
-                              eventDate: item.event_date,
-                              notes: item.notes,
-                              songs: item.schedule_songs || []
-                            })}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-church-blue text-slate-300 hover:text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 border border-church-border hover:border-church-blue"
-                          >
-                            <CalendarPlus className="w-3.5 h-3.5" />
-                            Adicionar ao Google Agenda (Alerta 2h)
-                          </a>
-                        </div>
+                        {/* Botão de Google Agenda apenas nas futuras */}
+                        {!isPast && (
+                          <div className="pt-3 border-t border-church-border">
+                            <a
+                              href={generateGoogleCalendarUrl({
+                                title: item.title,
+                                eventDate: item.event_date,
+                                notes: item.notes,
+                                songs: item.schedule_songs || []
+                              })}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-church-blue text-slate-300 hover:text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 border border-church-border hover:border-church-blue"
+                            >
+                              <CalendarPlus className="w-3.5 h-3.5" />
+                              Adicionar ao Google Agenda (Alerta 2h)
+                            </a>
+                          </div>
+                        )}
 
                       </div>
                     );
