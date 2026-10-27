@@ -433,7 +433,7 @@ export default function App() {
     setIsScheduleModalOpen(true);
   };
 
-  // Guardar ou Editar Música
+  // Guardar ou Editar Música (Sem forçar .single() no update para prevenir erro PGRST116)
   const handleSaveSong = async (songPayload, songId = null) => {
     try {
       const cleanPayload = {
@@ -451,14 +451,12 @@ export default function App() {
       let resultData = null;
 
       if (songId) {
-        // Atualização de música existente sem forçar .single()
         const { error } = await supabase
           .from('songs')
           .update(cleanPayload)
           .eq('id', songId);
 
         if (error) throw error;
-
         resultData = { id: songId, ...cleanPayload };
 
         triggerMobileNotification(
@@ -466,7 +464,6 @@ export default function App() {
           `"${cleanPayload.title}" foi editada com sucesso.`
         );
       } else {
-        // Nova inserção
         const { data, error } = await supabase
           .from('songs')
           .insert([cleanPayload])
@@ -488,7 +485,7 @@ export default function App() {
       return resultData;
     } catch (err) {
       console.error('Erro ao cadastrar/atualizar música:', err);
-      alert('Erro ao salvar louvor: ' + (err.message || 'Verifique os dados.'));
+      alert('Erro ao guardar louvor: ' + (err.message || 'Verifique os dados.'));
       throw err;
     }
   };
@@ -751,7 +748,7 @@ export default function App() {
                           : 'bg-church-card text-slate-400 border-church-border hover:border-slate-600 hover:text-white'
                       }`}
                     >
-                      {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                      {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                       {role}
                     </button>
                   );
@@ -915,7 +912,9 @@ export default function App() {
               songs={songs}
               schedules={schedules}
               profiles={profiles}
+              currentUser={currentUser}
               onNavigate={(tab) => setActiveTab(tab)}
+              onRefresh={fetchData}
             />
           )}
 

@@ -1,280 +1,329 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
-  Music2, 
   Calendar, 
+  Music2, 
   Users, 
-  Cake, 
-  ArrowRight, 
   Clock, 
-  Sparkles, 
-  CalendarPlus
+  CheckCircle2, 
+  XCircle, 
+  AlertCircle, 
+  ChevronRight, 
+  Loader2, 
+  Check, 
+  X,
+  CalendarDays
 } from 'lucide-react';
-import { generateGoogleCalendarUrl } from '../utils/calendarUtils';
+import { schedulesService } from '../services/schedulesService';
 
 export default function DashboardOverview({ 
   songs = [], 
   schedules = [], 
   profiles = [], 
-  onNavigate 
+  currentUser = null,
+  onNavigate,
+  onRefresh
 }) {
-  const currentDate = new Date();
-  const currentMonth = currentDate.getMonth();
-  const monthName = new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(currentDate);
+  const [respondingId, setRespondingId] = useState(null);
 
-  const birthdayMembers = profiles.filter((member) => {
-    if (!member.birth_date) return false;
-    const parts = member.birth_date.split('-');
-    if (parts.length < 3) return false;
-    const birthMonth = parseInt(parts[1], 10) - 1;
-    return birthMonth === currentMonth;
-  }).map((member) => {
-    const parts = member.birth_date.split('-');
-    const day = parseInt(parts[2], 10);
-    const isToday = day === currentDate.getDate();
-    return {
-      ...member,
-      day,
-      isToday
-    };
-  }).sort((a, b) => a.day - b.day);
+  const currentUserId = currentUser?.user?.id;
 
-  const nextSchedule = schedules
-    .filter(s => new Date(s.event_date) >= new Date())
-    .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))[0] || schedules[0];
+  // Filtrar escalas futuras onde o usuário logado está escalado
+  const now = new Date();
+  const myUpcomingSchedules = schedules.filter((s) => {
+    const isFuture = new Date(s.event_date) >= new Date(now.setHours(0,0,0,0));
+    const isMember = s.schedule_members?.some((m) => m.profile_id === currentUserId);
+    return isFuture && isMember;
+  });
 
-  let nextFormattedDate = '';
-  let nextFormattedTime = '';
-  if (nextSchedule) {
-    const d = new Date(nextSchedule.event_date);
-    nextFormattedDate = new Intl.DateTimeFormat('pt-BR', { 
-      weekday: 'short', 
-      day: '2-digit', 
-      month: 'short' 
-    }).format(d);
-    nextFormattedTime = new Intl.DateTimeFormat('pt-BR', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    }).format(d);
-  }
+  // Convites com status 'pending'
+  const pendingInvites = myUpcomingSchedules.filter((s) => {
+    const memberRecord = s.schedule_members?.find((m) => m.profile_id === currentUserId);
+    return !memberRecord?.status || memberRecord?.status === 'pending';
+  });
 
-  const isNextRehearsal = nextSchedule?.type === 'rehearsal';
+  // Escalas já respondidas pelo usuário
+  const answeredSchedules = myUpcomingSchedules.filter((s) => {
+    const memberRecord = s.schedule_members?.find((m) => m.profile_id === currentUserId);
+    return memberRecord?.status === 'confirmed' || memberRecord?.status === 'declined';
+  });
+
+  // Responder ao convite da escala
+  const handleResponse = async (scheduleId, status) => {
+    if (!currentUserId) return;
+    try {
+      setRespondingId(`${scheduleId}-${status}`);
+      await schedulesService.respondSchedule(scheduleId, currentUserId, status);
+      if (onRefresh) await onRefresh();
+    } catch (err) {
+      console.error('Erro ao responder escala:', err);
+      alert('Não foi possível registrar a sua resposta.');
+    } finally {
+      setRespondingId(null);
+    }
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
+    <div className="space-y-6 animate-in fade-in">
       
-      {/* Título */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            Painel Geral <Sparkles className="w-5 h-5 text-church-blue" />
-          </h2>
-          <p className="text-xs text-slate-400">
-            Visão consolidada da equipe de louvor, repertório e escalas de culto e ensaio.
-          </p>
-        </div>
-      </div>
-
-      {/* Cartões de Métricas */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        
-        <div 
-          onClick={() => onNavigate('songs')}
-          className="bg-church-card border border-church-border hover:border-church-blue/60 p-5 rounded-3xl cursor-pointer transition-all group flex flex-col justify-between shadow-sm"
-        >
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Total no Repertório</span>
-              <div className="w-8 h-8 rounded-xl bg-slate-900 group-hover:bg-church-blue flex items-center justify-center text-slate-400 group-hover:text-white transition-colors">
-                <Music2 className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-white">{songs.length}</span>
-              <span className="text-[11px] font-bold text-church-blue group-hover:underline flex items-center gap-1">
-                Ver repertório <ArrowRight className="w-3 h-3" />
-              </span>
-            </div>
+      {/* 1. SEÇÃO DE CONVITES PENDENTES (DESTAQUE NO TOPO) */}
+      {pendingInvites.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" />
+            <h3 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400" />
+              Você tem {pendingInvites.length} nova(s) convocação(ões) para confirmar:
+            </h3>
           </div>
-        </div>
 
-        <div 
-          onClick={() => onNavigate('schedules')}
-          className="bg-church-card border border-church-border hover:border-church-blue/60 p-5 rounded-3xl cursor-pointer transition-all group flex flex-col justify-between shadow-sm"
-        >
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Escalas Cadastradas</span>
-              <div className="w-8 h-8 rounded-xl bg-slate-900 group-hover:bg-church-blue flex items-center justify-center text-slate-400 group-hover:text-white transition-colors">
-                <Calendar className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-white">{schedules.length}</span>
-              <span className="text-[11px] font-bold text-church-blue group-hover:underline flex items-center gap-1">
-                Ver escalas <ArrowRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {pendingInvites.map((schedule) => {
+              const myRoleRecord = schedule.schedule_members?.find((m) => m.profile_id === currentUserId);
+              const eventDate = new Date(schedule.event_date);
+              const formattedDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(eventDate);
+              const formattedTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(eventDate);
 
-        <div 
-          onClick={() => onNavigate('members')}
-          className="bg-church-card border border-church-border hover:border-church-blue/60 p-5 rounded-3xl cursor-pointer transition-all group flex flex-col justify-between shadow-sm"
-        >
-          <div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-400">Voluntários na Equipe</span>
-              <div className="w-8 h-8 rounded-xl bg-slate-900 group-hover:bg-church-blue flex items-center justify-center text-slate-400 group-hover:text-white transition-colors">
-                <Users className="w-4 h-4" />
-              </div>
-            </div>
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-black text-white">{profiles.length || 1}</span>
-              <span className="text-[11px] font-bold text-church-blue group-hover:underline flex items-center gap-1">
-                Ver equipe <ArrowRight className="w-3 h-3" />
-              </span>
-            </div>
-          </div>
-        </div>
+              const isAccepting = respondingId === `${schedule.id}-confirmed`;
+              const isDeclining = respondingId === `${schedule.id}-declined`;
 
-      </div>
+              return (
+                <div 
+                  key={schedule.id}
+                  className="bg-gradient-to-br from-blue-950/40 via-church-card to-church-card border-2 border-church-blue/60 p-5 rounded-3xl shadow-xl space-y-4 relative overflow-hidden"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                        Confirmação Pendente
+                      </span>
+                      <h4 className="text-lg font-black text-white mt-1.5 leading-tight">
+                        {schedule.title}
+                      </h4>
+                      <p className="text-xs text-slate-300 capitalize mt-0.5 flex items-center gap-1.5">
+                        <CalendarDays className="w-3.5 h-3.5 text-church-blue" />
+                        {formattedDate} às {formattedTime}
+                      </p>
+                    </div>
 
-      {/* Grade de Destaques */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-[10px] text-slate-400 block font-semibold">Sua Função:</span>
+                      <span className="text-xs font-black text-church-blue bg-blue-950/80 border border-church-blue/40 px-2.5 py-1 rounded-xl block mt-0.5">
+                        {myRoleRecord?.role || 'Voluntário'}
+                      </span>
+                    </div>
+                  </div>
 
-        {/* Próximo Culto */}
-        <div className="bg-church-card border border-church-border rounded-3xl p-6 flex flex-col justify-between shadow-sm">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Calendar className={`w-4 h-4 ${isNextRehearsal ? 'text-amber-400' : 'text-church-blue'}`} />
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  {isNextRehearsal ? 'Próximo Ensaio' : 'Próximo Culto'}
-                </h3>
-              </div>
-              {nextSchedule && (
-                <span className={`px-2.5 py-1 rounded-xl text-xs font-bold ${
-                  isNextRehearsal
-                    ? 'bg-amber-400/10 border border-amber-400/30 text-amber-400'
-                    : 'bg-church-blue/10 border border-church-blue/30 text-church-blue'
-                }`}>
-                  {nextFormattedDate}
-                </span>
-              )}
-            </div>
+                  {schedule.notes && (
+                    <p className="text-xs text-slate-400 bg-church-dark/80 p-2.5 rounded-xl border border-church-border leading-relaxed">
+                      {schedule.notes}
+                    </p>
+                  )}
 
-            {nextSchedule ? (
-              <div className="p-4 rounded-2xl bg-church-dark border border-church-border space-y-3">
-                <div>
-                  <h4 className="text-base font-extrabold text-white">{nextSchedule.title}</h4>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                      <Clock className={`w-3.5 h-3.5 ${isNextRehearsal ? 'text-amber-400' : 'text-church-blue'}`} /> 
-                      {nextFormattedTime}
-                    </span>
-                    {nextSchedule.notes && (
-                      <span className="text-xs text-slate-500">• {nextSchedule.notes}</span>
-                    )}
+                  {/* Botões de Ação */}
+                  <div className="pt-2 grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      disabled={!!respondingId}
+                      onClick={() => handleResponse(schedule.id, 'confirmed')}
+                      className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-extrabold text-xs transition-all shadow-md shadow-emerald-600/30 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {isAccepting ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4 stroke-[3]" />
+                      )}
+                      Aceitar Escala
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!!respondingId}
+                      onClick={() => handleResponse(schedule.id, 'declined')}
+                      className="py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-church-red disabled:opacity-50 text-slate-300 hover:text-white border border-church-border hover:border-church-red font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {isDeclining ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <X className="w-4 h-4 stroke-[3]" />
+                      )}
+                      Não Posso Ir
+                    </button>
                   </div>
                 </div>
-
-                <div className="pt-3 border-t border-church-border flex items-center justify-between text-xs text-slate-400">
-                  <span>Repertório: <strong className="text-white">{nextSchedule.schedule_songs?.length || 0} músicas</strong></span>
-                  <span>Equipe: <strong className="text-white">{nextSchedule.schedule_members?.length || 0} escalados</strong></span>
-                </div>
-
-                <div className="pt-2">
-                  <a
-                    href={generateGoogleCalendarUrl({
-                      title: nextSchedule.title,
-                      eventDate: nextSchedule.event_date,
-                      notes: nextSchedule.notes,
-                      songs: nextSchedule.schedule_songs || []
-                    })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-2 rounded-xl bg-slate-900 hover:bg-church-blue text-slate-300 hover:text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 border border-church-border hover:border-church-blue"
-                  >
-                    <CalendarPlus className="w-3.5 h-3.5" />
-                    Adicionar ao Google Agenda (Alerta 2h)
-                  </a>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500 italic py-6">Nenhum evento agendado no momento.</p>
-            )}
+              );
+            })}
           </div>
+        </div>
+      )}
 
+      {/* 2. MINHAS PRÓXIMAS ESCALAS CONFIRMADAS / RECUSADAS */}
+      {answeredSchedules.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            Minha Participação nas Próximas Escalas
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {answeredSchedules.map((schedule) => {
+              const myRoleRecord = schedule.schedule_members?.find((m) => m.profile_id === currentUserId);
+              const isConfirmed = myRoleRecord?.status === 'confirmed';
+              const eventDate = new Date(schedule.event_date);
+              const formattedDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'medium' }).format(eventDate);
+              const formattedTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(eventDate);
+
+              return (
+                <div
+                  key={schedule.id}
+                  className="p-4 rounded-2xl bg-church-card border border-church-border flex items-center justify-between gap-3 shadow-sm"
+                >
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-black text-white truncate">{schedule.title}</h4>
+                    <p className="text-[11px] text-slate-400 capitalize mt-0.5">
+                      {formattedDate} às {formattedTime} • Função: <strong className="text-slate-200">{myRoleRecord?.role}</strong>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {isConfirmed ? (
+                      <span className="px-2.5 py-1 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-[10px] font-black flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Confirmado
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-1 rounded-xl bg-red-950/60 border border-red-500/40 text-red-400 text-[10px] font-black flex items-center gap-1">
+                        <XCircle className="w-3 h-3" /> Recusado
+                      </span>
+                    )}
+
+                    {/* Botão para alterar resposta se necessário */}
+                    <button
+                      type="button"
+                      onClick={() => handleResponse(schedule.id, isConfirmed ? 'declined' : 'confirmed')}
+                      className="p-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors text-[10px] cursor-pointer"
+                      title="Alterar resposta"
+                    >
+                      Alterar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 3. RESUMO GERAL DO MINISTÉRIO */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div 
+          onClick={() => onNavigate && onNavigate('schedules')}
+          className="bg-church-card border border-church-border hover:border-church-blue/50 p-5 rounded-3xl transition-all cursor-pointer group shadow-sm flex items-center justify-between"
+        >
+          <div>
+            <span className="text-xs font-semibold text-slate-400">Total de Escalas</span>
+            <h3 className="text-2xl font-black text-white mt-1 group-hover:text-church-blue transition-colors">
+              {schedules.length}
+            </h3>
+          </div>
+          <div className="w-11 h-11 rounded-2xl bg-blue-950/60 border border-church-blue/30 text-church-blue flex items-center justify-center">
+            <Calendar className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div 
+          onClick={() => onNavigate && onNavigate('songs')}
+          className="bg-church-card border border-church-border hover:border-church-blue/50 p-5 rounded-3xl transition-all cursor-pointer group shadow-sm flex items-center justify-between"
+        >
+          <div>
+            <span className="text-xs font-semibold text-slate-400">Músicas no Repertório</span>
+            <h3 className="text-2xl font-black text-white mt-1 group-hover:text-church-blue transition-colors">
+              {songs.length}
+            </h3>
+          </div>
+          <div className="w-11 h-11 rounded-2xl bg-blue-950/60 border border-church-blue/30 text-church-blue flex items-center justify-center">
+            <Music2 className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div 
+          onClick={() => onNavigate && onNavigate('members')}
+          className="bg-church-card border border-church-border hover:border-church-blue/50 p-5 rounded-3xl transition-all cursor-pointer group shadow-sm flex items-center justify-between"
+        >
+          <div>
+            <span className="text-xs font-semibold text-slate-400">Voluntários no Louvor</span>
+            <h3 className="text-2xl font-black text-white mt-1 group-hover:text-church-blue transition-colors">
+              {profiles.length}
+            </h3>
+          </div>
+          <div className="w-11 h-11 rounded-2xl bg-blue-950/60 border border-church-blue/30 text-church-blue flex items-center justify-center">
+            <Users className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* 4. PRÓXIMO CULTO / ENSAIO GERAL */}
+      <div className="bg-church-card border border-church-border rounded-3xl p-5 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <h3 className="text-base font-black text-white flex items-center gap-2">
+              Próxima Escala da Igreja <Calendar className="w-4 h-4 text-church-blue" />
+            </h3>
+            <p className="text-xs text-slate-400">Visão geral do próximo evento agendado.</p>
+          </div>
           <button
-            onClick={() => onNavigate('schedules')}
-            className="mt-4 w-full py-2.5 rounded-xl bg-slate-900 hover:bg-church-blue text-slate-300 hover:text-white font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer border border-church-border hover:border-church-blue"
+            type="button"
+            onClick={() => onNavigate && onNavigate('schedules')}
+            className="text-xs text-church-blue hover:underline font-bold flex items-center gap-1 cursor-pointer"
           >
-            Acessar todas as escalas <ArrowRight className="w-3.5 h-3.5" />
+            Ver todas <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Aniversariantes */}
-        <div className="bg-church-card border border-church-border rounded-3xl p-6 flex flex-col justify-between shadow-sm">
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-4">
-              <div className="flex items-center gap-2 min-w-0">
-                <Cake className="w-4 h-4 text-church-blue flex-shrink-0" />
-                <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider truncate">
-                  Aniversariantes de {monthName.charAt(0).toUpperCase() + monthName.slice(1)}
-                </h3>
-              </div>
-              <span className="text-[11px] sm:text-xs font-bold text-church-blue bg-church-blue/10 px-2.5 py-1 rounded-xl border border-church-blue/20 whitespace-nowrap flex-shrink-0">
-                {birthdayMembers.length} aniversariantes
-              </span>
-            </div>
+        {schedules.length > 0 ? (
+          (() => {
+            const nextEvent = schedules[0];
+            const eventDate = new Date(nextEvent.event_date);
+            const formattedDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(eventDate);
+            const formattedTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(eventDate);
 
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {birthdayMembers.length > 0 ? (
-                birthdayMembers.map((member) => (
-                  <div
-                    key={member.id}
-                    className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
-                      member.isToday
-                        ? 'bg-blue-950/40 border-church-blue shadow-sm shadow-blue-900/30'
-                        : 'bg-church-dark border-church-border'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${
-                        member.isToday 
-                          ? 'bg-church-blue text-white animate-pulse'
-                          : 'bg-slate-900 text-slate-300 border border-church-border'
-                      }`}>
-                        Dia {member.day}
-                      </div>
+            return (
+              <div className="p-4 rounded-2xl bg-church-dark border border-church-border space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white">{nextEvent.title}</h4>
+                    <span className="text-xs text-slate-400 capitalize block mt-0.5">{formattedDate} às {formattedTime}</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-xl self-start sm:self-auto ${
+                    nextEvent.type === 'rehearsal'
+                      ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
+                      : 'bg-church-blue/10 text-church-blue border border-church-blue/20'
+                  }`}>
+                    {nextEvent.type === 'rehearsal' ? 'Ensaio' : 'Culto Oficial'}
+                  </span>
+                </div>
 
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs font-bold text-white leading-tight">{member.full_name}</h4>
-                          {member.isToday && (
-                            <span className="text-[10px] font-extrabold bg-church-red text-white px-1.5 py-0.2 rounded-md">
-                              Hoje! 🎉
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-church-blue font-medium">
-                          {Array.isArray(member.roles) ? member.roles.join(', ') : (member.instrument_role || 'Membro')}
+                {nextEvent.schedule_members && nextEvent.schedule_members.length > 0 && (
+                  <div className="pt-2 border-t border-church-border">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Equipe:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {nextEvent.schedule_members.map((m, idx) => (
+                        <span 
+                          key={idx}
+                          className="px-2.5 py-0.5 rounded-lg bg-church-card border border-church-border text-[11px] text-slate-200"
+                        >
+                          {m.profile?.full_name || 'Voluntário'} <strong className="text-church-blue">({m.role})</strong>
+                          {m.status === 'confirmed' && ' ✅'}
+                          {m.status === 'declined' && ' ❌'}
                         </span>
-                      </div>
+                      ))}
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8">
-                  <Cake className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-xs text-slate-400">Nenhum aniversariante cadastrado para este mês.</p>
-                  <p className="text-[11px] text-slate-500 mt-1">As datas de nascimento cadastradas aparecerão aqui.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
+                )}
+              </div>
+            );
+          })()
+        ) : (
+          <p className="text-xs text-slate-500 italic py-3 text-center">
+            Nenhuma escala cadastrada no momento.
+          </p>
+        )}
       </div>
 
     </div>

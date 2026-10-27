@@ -116,5 +116,17 @@ export const schedulesService = {
     const { error } = await supabase.from('schedules').delete().eq('id', scheduleId);
     if (error) throw error;
     return true;
+  },
+
+  // Atualizar resposta de presença do voluntário (confirmed / declined)
+  async respondSchedule(scheduleId, profileId, status) {
+    const { data, error } = await supabase
+      .from('schedule_members')
+      .update({ status })
+      .eq('schedule_id', scheduleId)
+      .eq('profile_id', profileId);
+
+    if (error) throw error;
+    return data;
   }
 };
