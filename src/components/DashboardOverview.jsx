@@ -27,27 +27,36 @@ export default function DashboardOverview({
 
   const currentUserId = currentUser?.user?.id;
 
-  // Filtrar escalas futuras onde o usuário logado está escalado
+  // Data de referência: Início do dia de hoje (00:00:00)
   const now = new Date();
-  const myUpcomingSchedules = schedules.filter((s) => {
-    const isFuture = new Date(s.event_date) >= new Date(now.setHours(0,0,0,0));
-    const isMember = s.schedule_members?.some((m) => m.profile_id === currentUserId);
-    return isFuture && isMember;
-  });
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // Convites com status 'pending'
+  // 1. Filtrar e ordenar escalas FUTURAS da igreja em ordem cronológica crescente
+  const upcomingSchedules = schedules
+    .filter((s) => new Date(s.event_date) >= startOfToday)
+    .sort((a, b) => new Date(a.event_date) - new Date(b.event_date));
+
+  // A próxima escala cronológica real da igreja
+  const nextUpcomingEvent = upcomingSchedules.length > 0 ? upcomingSchedules[0] : null;
+
+  // 2. Escalas futuras onde o usuário logado está escalado
+  const myUpcomingSchedules = upcomingSchedules.filter((s) =>
+    s.schedule_members?.some((m) => m.profile_id === currentUserId)
+  );
+
+  // Convites com confirmação pendente para o usuário logado
   const pendingInvites = myUpcomingSchedules.filter((s) => {
     const memberRecord = s.schedule_members?.find((m) => m.profile_id === currentUserId);
     return !memberRecord?.status || memberRecord?.status === 'pending';
   });
 
-  // Escalas já respondidas pelo usuário
+  // Escalas já respondidas (Confirmadas ou Recusadas)
   const answeredSchedules = myUpcomingSchedules.filter((s) => {
     const memberRecord = s.schedule_members?.find((m) => m.profile_id === currentUserId);
     return memberRecord?.status === 'confirmed' || memberRecord?.status === 'declined';
   });
 
-  // Responder ao convite da escala
+  // Responder convite de presença
   const handleResponse = async (scheduleId, status) => {
     if (!currentUserId) return;
     try {
@@ -156,7 +165,7 @@ export default function DashboardOverview({
         </div>
       )}
 
-      {/* 2. MINHAS PRÓXIMAS ESCALAS CONFIRMADAS / RECUSADAS */}
+      {/* 2. MINHAS PRÓXIMAS PARTICIPAÇÕES CONFIRMADAS / RECUSADAS */}
       {answeredSchedules.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -193,7 +202,6 @@ export default function DashboardOverview({
                       </span>
                     )}
 
-                    {/* Botão para alterar resposta se necessário */}
                     <button
                       type="button"
                       onClick={() => handleResponse(schedule.id, isConfirmed ? 'declined' : 'confirmed')}
@@ -210,16 +218,16 @@ export default function DashboardOverview({
         </div>
       )}
 
-      {/* 3. RESUMO GERAL DO MINISTÉRIO */}
+      {/* 3. RESUMO GERAL */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
         <div 
           onClick={() => onNavigate && onNavigate('schedules')}
           className="bg-church-card border border-church-border hover:border-church-blue/50 p-5 rounded-3xl transition-all cursor-pointer group shadow-sm flex items-center justify-between"
         >
           <div>
-            <span className="text-xs font-semibold text-slate-400">Total de Escalas</span>
+            <span className="text-xs font-semibold text-slate-400">Próximas Escalas</span>
             <h3 className="text-2xl font-black text-white mt-1 group-hover:text-church-blue transition-colors">
-              {schedules.length}
+              {upcomingSchedules.length}
             </h3>
           </div>
           <div className="w-11 h-11 rounded-2xl bg-blue-950/60 border border-church-blue/30 text-church-blue flex items-center justify-center">
@@ -258,7 +266,7 @@ export default function DashboardOverview({
         </div>
       </div>
 
-      {/* 4. PRÓXIMO CULTO / ENSAIO GERAL */}
+      {/* 4. PRÓXIMA ESCALA REAL DA IGREJA (ORDEM CRONOLÓGICA FUTURA) */}
       <div className="bg-church-card border border-church-border rounded-3xl p-5 sm:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
@@ -276,10 +284,9 @@ export default function DashboardOverview({
           </button>
         </div>
 
-        {schedules.length > 0 ? (
+        {nextUpcomingEvent ? (
           (() => {
-            const nextEvent = schedules[0];
-            const eventDate = new Date(nextEvent.event_date);
+            const eventDate = new Date(nextUpcomingEvent.event_date);
             const formattedDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full' }).format(eventDate);
             const formattedTime = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(eventDate);
 
@@ -287,23 +294,25 @@ export default function DashboardOverview({
               <div className="p-4 rounded-2xl bg-church-dark border border-church-border space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <h4 className="text-sm font-extrabold text-white">{nextEvent.title}</h4>
-                    <span className="text-xs text-slate-400 capitalize block mt-0.5">{formattedDate} às {formattedTime}</span>
+                    <h4 className="text-sm font-extrabold text-white">{nextUpcomingEvent.title}</h4>
+                    <span className="text-xs text-slate-400 capitalize block mt-0.5">
+                      {formattedDate} às {formattedTime}
+                    </span>
                   </div>
                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-xl self-start sm:self-auto ${
-                    nextEvent.type === 'rehearsal'
+                    nextUpcomingEvent.type === 'rehearsal'
                       ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
                       : 'bg-church-blue/10 text-church-blue border border-church-blue/20'
                   }`}>
-                    {nextEvent.type === 'rehearsal' ? 'Ensaio' : 'Culto Oficial'}
+                    {nextUpcomingEvent.type === 'rehearsal' ? 'Ensaio' : 'Culto Oficial'}
                   </span>
                 </div>
 
-                {nextEvent.schedule_members && nextEvent.schedule_members.length > 0 && (
+                {nextUpcomingEvent.schedule_members && nextUpcomingEvent.schedule_members.length > 0 && (
                   <div className="pt-2 border-t border-church-border">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Equipe:</span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Equipe Escalada:</span>
                     <div className="flex flex-wrap gap-1.5">
-                      {nextEvent.schedule_members.map((m, idx) => (
+                      {nextUpcomingEvent.schedule_members.map((m, idx) => (
                         <span 
                           key={idx}
                           className="px-2.5 py-0.5 rounded-lg bg-church-card border border-church-border text-[11px] text-slate-200"
@@ -320,9 +329,14 @@ export default function DashboardOverview({
             );
           })()
         ) : (
-          <p className="text-xs text-slate-500 italic py-3 text-center">
-            Nenhuma escala cadastrada no momento.
-          </p>
+          <div className="p-5 rounded-2xl bg-church-dark border border-church-border text-center space-y-1">
+            <p className="text-xs text-slate-300 font-semibold">
+              Nenhuma escala futura agendada para os próximos dias.
+            </p>
+            <p className="text-[11px] text-slate-500">
+              Todas as escalas anteriores foram movidas para o Histórico.
+            </p>
+          </div>
         )}
       </div>
 
