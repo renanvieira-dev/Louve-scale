@@ -1,7 +1,7 @@
 {
   "short_name": "LouveScale",
-  "name": "LouveScale - Gestão de Louvor",
-  "description": "Gestão de escalas, repertório e voluntários",
+  "name": "LouveScale - Ministério de Louvor",
+  "description": "Gestão inteligente de escalas, repertório e voluntários",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#090d16",
@@ -9,10 +9,22 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/favicon.ico",
-      "sizes": "16x16 32x32 48x48 64x64 128x128 256x256",
-      "type": "image/x-icon",
-      "purpose": "any maskable"
+      "src": "/pwa-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ]
 }
