@@ -451,29 +451,29 @@ export default function App() {
       let resultData = null;
 
       if (songId) {
-        const { data, error } = await supabase
+        // Atualização de música existente sem forçar .single()
+        const { error } = await supabase
           .from('songs')
           .update(cleanPayload)
-          .eq('id', songId)
-          .select()
-          .single();
+          .eq('id', songId);
 
         if (error) throw error;
-        resultData = data;
+
+        resultData = { id: songId, ...cleanPayload };
 
         triggerMobileNotification(
           'Música Atualizada! 🎵',
           `"${cleanPayload.title}" foi editada com sucesso.`
         );
       } else {
+        // Nova inserção
         const { data, error } = await supabase
           .from('songs')
           .insert([cleanPayload])
-          .select()
-          .single();
+          .select();
 
         if (error) throw error;
-        resultData = data;
+        resultData = data && data.length > 0 ? data[0] : cleanPayload;
 
         const creatorName = currentUser?.profile?.full_name || 'Membro do Louvor';
         triggerMobileNotification(
@@ -488,7 +488,7 @@ export default function App() {
       return resultData;
     } catch (err) {
       console.error('Erro ao cadastrar/atualizar música:', err);
-      alert('Erro ao guardar louvor: ' + (err.message || 'Verifique os dados.'));
+      alert('Erro ao salvar louvor: ' + (err.message || 'Verifique os dados.'));
       throw err;
     }
   };
