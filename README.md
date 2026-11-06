@@ -82,19 +82,3 @@ Voluntários e músicos precisam checar escalas em deslocamento ou durante ensai
 </p>
 
 </div>
-
----
-
-### 🚀 Instruções de Instalação e Execução Local
-
-#### Pré-requisitos
-* **Node.js** (versão 18.x ou superior recomendada)
-* Gerenciador de pacotes (**npm**, **yarn** ou **pnpm**)
-* Um projeto configurado no [Supabase](https://supabase.com/) com tabelas de usuários e escalas
-
-#### Passo a Passo
-
-1. **Clonar o Repositório:**
-   ```bash
-   git clone [https://github.com/renanvieira-dev/Louve-scale.git](https://github.com/renanvieira-dev/Louve-scale.git)
-   cd Louve-scale
